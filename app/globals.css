@@ -1,0 +1,55 @@
+@import 'tailwindcss';
+
+:root {
+  --background: #f7f4fb;
+  --card: rgba(255, 255, 255, 0.72);
+  --text: #1d2433;
+  --muted: #64748b;
+  --border: rgba(148, 163, 184, 0.21);
+  --shadow: rgba(125, 96, 150, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--text);
+  font-family: Arial, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+input[type='date'],
+input[type='number'] {
+  appearance: none;
+}
+
+::selection {
+  background: rgba(139, 92, 246, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
