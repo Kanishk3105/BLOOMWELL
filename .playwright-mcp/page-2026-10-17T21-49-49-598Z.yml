@@ -1,0 +1,124 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - main [ref=f2e67]:
+      - generic [ref=f2e68]:
+        - generic [ref=f2e69]:
+          - generic [ref=f2e70]:
+            - paragraph [ref=f2e71]: Welcome
+            - heading "Test User, here’s your health snapshot" [level=2] [ref=f2e285]
+          - generic [ref=f2e73]:
+            - button [ref=f2e74] [cursor=pointer]
+            - button "T Test User Update details" [ref=f2e286] [cursor=pointer]:
+              - generic [ref=f2e79]: T
+              - generic [ref=f2e80]:
+                - paragraph [ref=f2e81]: Test User
+                - paragraph [ref=f2e82]: Update details
+        - generic [ref=f2e83]:
+          - button "Today" [ref=f2e84] [cursor=pointer]
+          - button "Cycle" [ref=f2e85] [cursor=pointer]
+          - button "Nutrition" [ref=f2e86] [cursor=pointer]
+          - button "Insights" [ref=f2e87] [cursor=pointer]
+          - button "Health" [ref=f2e88] [cursor=pointer]
+          - button "Reminders" [ref=f2e89] [cursor=pointer]
+          - button "Profile" [ref=f2e90] [cursor=pointer]
+      - generic [ref=f2e287]:
+        - generic [ref=f2e288]:
+          - generic [ref=f2e290]:
+            - paragraph [ref=f2e291]: Meal log
+            - heading "Add food and nutrients" [level=3] [ref=f2e292]
+          - generic [ref=f2e293]:
+            - generic [ref=f2e294]:
+              - generic [ref=f2e295]:
+                - paragraph [ref=f2e296]: Meal photo helper
+                - heading "Capture image" [level=4] [ref=f2e297]
+              - generic [ref=f2e298] [cursor=pointer]: Upload photo
+            - paragraph [ref=f2e299]: A photo is only saved as a preview here; it is not analyzed. Choose a food below for a generic one-serving estimate, or enter nutrition facts manually.
+            - generic [ref=f2e300]:
+              - generic [ref=f2e301]:
+                - text: Optional generic estimate
+                - combobox "Optional generic estimate" [ref=f2e302]:
+                  - option "Choose a typical meal" [selected]
+                  - option "Salad with grains and vegetables"
+                  - option "Pasta with sauce"
+                  - option "Fruit smoothie"
+                  - option "Eggs with toast"
+                  - option "Chicken with rice"
+                  - option "Fish with vegetables"
+                  - option "Beans or lentils with rice"
+                  - option "Sandwich"
+                  - option "Yogurt with fruit"
+                  - option "Vegetable soup"
+                  - option "Pizza"
+              - button "Use estimate" [disabled] [ref=f2e303] [cursor=pointer]
+          - generic [ref=f2e304]:
+            - generic [ref=f2e305]:
+              - text: Meal name
+              - textbox "Meal name" [ref=f2e306]
+            - generic [ref=f2e307]:
+              - text: Date
+              - textbox "Date" [ref=f2e308]: 2026-10-18
+            - generic [ref=f2e309]:
+              - text: Calories
+              - spinbutton "Calories" [ref=f2e310]
+            - generic [ref=f2e311]:
+              - text: Protein
+              - spinbutton "Protein" [ref=f2e312]
+            - generic [ref=f2e313]:
+              - text: Carbs
+              - spinbutton "Carbs" [ref=f2e314]
+            - generic [ref=f2e315]:
+              - text: Fat
+              - spinbutton "Fat" [ref=f2e316]
+            - generic [ref=f2e317]:
+              - text: Vitamins / nutrients
+              - textbox "Vitamins / nutrients" [ref=f2e318]
+            - button "Save meal" [disabled] [ref=f2e320] [cursor=pointer]
+        - generic [ref=f2e321]:
+          - generic [ref=f2e322]:
+            - generic [ref=f2e324]:
+              - paragraph [ref=f2e325]: Daily intake
+              - heading "Nutrition summary" [level=3] [ref=f2e326]
+            - generic [ref=f2e327]:
+              - generic [ref=f2e328]:
+                - paragraph [ref=f2e329]: Calories
+                - generic [ref=f2e330]: 520 kcal
+              - generic [ref=f2e331]:
+                - paragraph [ref=f2e332]: Protein
+                - generic [ref=f2e333]: 26 g
+              - generic [ref=f2e334]:
+                - paragraph [ref=f2e335]: Carbs
+                - generic [ref=f2e336]: 78 g
+              - generic [ref=f2e337]:
+                - paragraph [ref=f2e338]: Fat
+                - generic [ref=f2e339]: 10 g
+            - application [ref=f2e343]:
+              - generic [ref=f2e360]:
+                - generic [ref=f2e361]: Beans or lentils with rice
+                - generic [ref=f2e364]:
+                  - generic [ref=f2e365]: "0"
+                  - generic [ref=f2e367]: "20"
+                  - generic [ref=f2e369]: "40"
+                  - generic [ref=f2e371]: "60"
+                  - generic [ref=f2e373]: "80"
+          - generic [ref=f2e375]:
+            - generic [ref=f2e377]:
+              - paragraph [ref=f2e378]: Meals
+              - heading "Recent entries" [level=3] [ref=f2e379]
+            - generic [ref=f2e381]:
+              - generic [ref=f2e382]:
+                - paragraph [ref=f2e383]: Beans or lentils with rice
+                - generic [ref=f2e384]: 520 kcal
+              - generic [ref=f2e385]:
+                - generic [ref=f2e386]: Oct 18
+                - generic [ref=f2e387]: Adjusted estimate
+    - navigation [ref=f2e388]:
+      - generic [ref=f2e389]:
+        - button "Today" [ref=f2e390] [cursor=pointer]
+        - button "Cycle" [ref=f2e394] [cursor=pointer]
+        - button "Nutrition" [ref=f2e397] [cursor=pointer]
+        - button "Insights" [ref=f2e402] [cursor=pointer]
+        - button "Health" [ref=f2e405] [cursor=pointer]
+        - button "Reminders" [ref=f2e409] [cursor=pointer]
+        - button "Profile" [ref=f2e413] [cursor=pointer]
+  - alert [ref=f2e199]
+  - generic [aria-hidden] [ref=f2e200]: "1"

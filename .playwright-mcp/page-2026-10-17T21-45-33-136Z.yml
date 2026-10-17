@@ -1,0 +1,118 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e3]:
+    - complementary [ref=f2e4]:
+      - generic [ref=f2e5]:
+        - generic [ref=f2e6]: B
+        - generic [ref=f2e7]:
+          - paragraph [ref=f2e8]: BloomWell
+          - heading "Your health space" [level=1] [ref=f2e9]
+      - navigation [ref=f2e10]:
+        - button "Today" [ref=f2e11] [cursor=pointer]
+        - button "Cycle" [ref=f2e18] [cursor=pointer]
+        - button "Nutrition" [ref=f2e24] [cursor=pointer]
+        - button "Insights" [ref=f2e32] [cursor=pointer]
+        - button "Health" [ref=f2e38] [cursor=pointer]
+        - button "Reminders" [ref=f2e45] [cursor=pointer]
+        - button "Profile" [ref=f2e52] [cursor=pointer]
+      - generic [ref=f2e59]:
+        - generic [ref=f2e60]: Care note
+        - paragraph [ref=f2e66]: Your data stays on your device here, and you can add or update details anytime without pressure or guesswork.
+    - main [ref=f2e67]:
+      - generic [ref=f2e68]:
+        - generic [ref=f2e69]:
+          - generic [ref=f2e70]:
+            - paragraph [ref=f2e71]: Welcome
+            - heading "Here’s your health snapshot" [level=2] [ref=f2e72]
+          - generic [ref=f2e73]:
+            - button [ref=f2e74] [cursor=pointer]
+            - button "U Your profile Update details" [ref=f2e78] [cursor=pointer]:
+              - generic [ref=f2e79]: U
+              - generic [ref=f2e80]:
+                - paragraph [ref=f2e81]: Your profile
+                - paragraph [ref=f2e82]: Update details
+        - generic [ref=f2e83]:
+          - button "Today" [ref=f2e84] [cursor=pointer]
+          - button "Cycle" [ref=f2e85] [cursor=pointer]
+          - button "Nutrition" [ref=f2e86] [cursor=pointer]
+          - button "Insights" [ref=f2e87] [cursor=pointer]
+          - button "Health" [ref=f2e88] [cursor=pointer]
+          - button "Reminders" [ref=f2e89] [cursor=pointer]
+          - button "Profile" [ref=f2e90] [cursor=pointer]
+      - generic [ref=f2e201]:
+        - generic [ref=f2e202]:
+          - generic [ref=f2e204]:
+            - paragraph [ref=f2e205]: Meal log
+            - heading "Add food and nutrients" [level=3] [ref=f2e206]
+          - generic [ref=f2e207]:
+            - generic [ref=f2e208]:
+              - generic [ref=f2e209]:
+                - paragraph [ref=f2e210]: Meal photo helper
+                - heading "Capture image" [level=4] [ref=f2e211]
+              - generic [ref=f2e212] [cursor=pointer]: Upload photo
+            - paragraph [ref=f2e213]: A photo is only saved as a preview here; it is not analyzed. Choose a food below for a generic one-serving estimate, or enter nutrition facts manually.
+            - generic [ref=f2e214]:
+              - generic [ref=f2e215]:
+                - text: Optional generic estimate
+                - combobox "Optional generic estimate" [ref=f2e216]:
+                  - option "Choose a typical meal"
+                  - option "Salad with grains and vegetables"
+                  - option "Pasta with sauce"
+                  - option "Fruit smoothie"
+                  - option "Eggs with toast"
+                  - option "Chicken with rice"
+                  - option "Fish with vegetables"
+                  - option "Beans or lentils with rice" [selected]
+                  - option "Sandwich"
+                  - option "Yogurt with fruit"
+                  - option "Vegetable soup"
+                  - option "Pizza"
+              - button "Use estimate" [ref=f2e217] [cursor=pointer]
+          - generic [ref=f2e218]:
+            - generic [ref=f2e219]:
+              - text: Meal name
+              - textbox "Meal name" [ref=f2e220]
+            - generic [ref=f2e221]:
+              - text: Date
+              - textbox "Date" [ref=f2e222]: 2026-10-18
+            - generic [ref=f2e223]:
+              - text: Calories
+              - spinbutton "Calories" [ref=f2e224]
+            - generic [ref=f2e225]:
+              - text: Protein
+              - spinbutton "Protein" [ref=f2e226]
+            - generic [ref=f2e227]:
+              - text: Carbs
+              - spinbutton "Carbs" [ref=f2e228]
+            - generic [ref=f2e229]:
+              - text: Fat
+              - spinbutton "Fat" [ref=f2e230]
+            - generic [ref=f2e231]:
+              - text: Vitamins / nutrients
+              - textbox "Vitamins / nutrients" [ref=f2e232]
+            - button "Save meal" [disabled] [ref=f2e234] [cursor=pointer]
+        - generic [ref=f2e235]:
+          - generic [ref=f2e236]:
+            - generic [ref=f2e238]:
+              - paragraph [ref=f2e239]: Daily intake
+              - heading "Nutrition summary" [level=3] [ref=f2e240]
+            - generic [ref=f2e241]:
+              - generic [ref=f2e242]:
+                - paragraph [ref=f2e243]: Calories
+                - generic [ref=f2e244]: 0 kcal
+              - generic [ref=f2e245]:
+                - paragraph [ref=f2e246]: Protein
+                - generic [ref=f2e247]: 0 g
+              - generic [ref=f2e248]:
+                - paragraph [ref=f2e249]: Carbs
+                - generic [ref=f2e250]: 0 g
+              - generic [ref=f2e251]:
+                - paragraph [ref=f2e252]: Fat
+                - generic [ref=f2e253]: 0 g
+            - application [ref=f2e257]
+          - generic [ref=f2e261]:
+            - generic [ref=f2e263]:
+              - paragraph [ref=f2e264]: Meals
+              - heading "Recent entries" [level=3] [ref=f2e265]
+            - generic [ref=f2e266]: No meals logged yet. Add your first meal to start tracking patterns.
+  - alert [ref=f2e199]
+  - generic [aria-hidden] [ref=f2e200]: "0"

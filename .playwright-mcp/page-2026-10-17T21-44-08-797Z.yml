@@ -1,0 +1,103 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e3]:
+    - complementary [ref=f2e4]:
+      - generic [ref=f2e5]:
+        - generic [ref=f2e6]: B
+        - generic [ref=f2e7]:
+          - paragraph [ref=f2e8]: BloomWell
+          - heading "Your health space" [level=1] [ref=f2e9]
+      - navigation [ref=f2e10]:
+        - button "Today" [ref=f2e11] [cursor=pointer]
+        - button "Cycle" [ref=f2e18] [cursor=pointer]
+        - button "Nutrition" [ref=f2e24] [cursor=pointer]
+        - button "Insights" [ref=f2e32] [cursor=pointer]
+        - button "Health" [ref=f2e38] [cursor=pointer]
+        - button "Reminders" [ref=f2e45] [cursor=pointer]
+        - button "Profile" [ref=f2e52] [cursor=pointer]
+      - generic [ref=f2e59]:
+        - generic [ref=f2e60]: Care note
+        - paragraph [ref=f2e66]: Your data stays on your device here, and you can add or update details anytime without pressure or guesswork.
+    - main [ref=f2e67]:
+      - generic [ref=f2e68]:
+        - generic [ref=f2e69]:
+          - generic [ref=f2e70]:
+            - paragraph [ref=f2e71]: Welcome
+            - heading "Here’s your health snapshot" [level=2] [ref=f2e72]
+          - generic [ref=f2e73]:
+            - button [ref=f2e74] [cursor=pointer]
+            - button "U Your profile Update details" [ref=f2e78] [cursor=pointer]:
+              - generic [ref=f2e79]: U
+              - generic [ref=f2e80]:
+                - paragraph [ref=f2e81]: Your profile
+                - paragraph [ref=f2e82]: Update details
+        - generic [ref=f2e83]:
+          - button "Today" [ref=f2e84] [cursor=pointer]
+          - button "Cycle" [ref=f2e85] [cursor=pointer]
+          - button "Nutrition" [ref=f2e86] [cursor=pointer]
+          - button "Insights" [ref=f2e87] [cursor=pointer]
+          - button "Health" [ref=f2e88] [cursor=pointer]
+          - button "Reminders" [ref=f2e89] [cursor=pointer]
+          - button "Profile" [ref=f2e90] [cursor=pointer]
+      - generic [ref=f2e91]:
+        - generic [ref=f2e92]:
+          - generic [ref=f2e93]:
+            - generic [ref=f2e94]: Cycle day
+            - generic [ref=f2e98]: —
+            - paragraph [ref=f2e99]: Add your last period to start tracking
+          - generic [ref=f2e100]:
+            - generic [ref=f2e101]: Weight
+            - generic [ref=f2e106]: Add weight
+            - paragraph [ref=f2e107]: Track meaningful changes over time.
+          - generic [ref=f2e108]:
+            - generic [ref=f2e109]: Nutrition
+            - generic [ref=f2e116]: 0 kcal
+            - paragraph [ref=f2e117]: Protein 0g · Carbs 0g
+          - generic [ref=f2e118]:
+            - generic [ref=f2e119]: Next period
+            - generic [ref=f2e123]: Data needed
+            - paragraph [ref=f2e124]: Estimated window based on your history
+        - generic [ref=f2e125]:
+          - generic [ref=f2e126]:
+            - generic [ref=f2e127]:
+              - generic [ref=f2e128]:
+                - paragraph [ref=f2e129]: Cycle overview
+                - heading "Pattern prediction" [level=3] [ref=f2e130]
+              - generic [ref=f2e131]:
+                - button "15d" [ref=f2e132] [cursor=pointer]
+                - button "30d" [ref=f2e133] [cursor=pointer]
+                - button "90d" [ref=f2e134] [cursor=pointer]
+                - button "1y" [ref=f2e135] [cursor=pointer]
+            - application [ref=f2e139]:
+              - generic [ref=f2e151]:
+                - generic [ref=f2e152]:
+                  - generic [ref=f2e153]: Day 1
+                  - generic [ref=f2e155]: Day 5
+                  - generic [ref=f2e157]: Day 10
+                  - generic [ref=f2e159]: Day 15
+                - generic [ref=f2e161]:
+                  - generic [ref=f2e162]: "0"
+                  - generic [ref=f2e164]: "20"
+                  - generic [ref=f2e166]: "40"
+                  - generic [ref=f2e168]: "60"
+                  - generic [ref=f2e170]: "80"
+          - generic [ref=f2e172]:
+            - generic [ref=f2e173]:
+              - generic [ref=f2e175]:
+                - paragraph [ref=f2e176]: Quick log
+                - heading "Track today" [level=3] [ref=f2e177]
+              - generic [ref=f2e181]:
+                - generic [ref=f2e182]:
+                  - text: Last period start
+                  - textbox "Last period start" [ref=f2e183]
+                - generic [ref=f2e184]:
+                  - text: Weight check-in (kg)
+                  - spinbutton "Weight check-in (kg)" [ref=f2e185]
+              - button "Save today" [ref=f2e186] [cursor=pointer]
+            - generic [ref=f2e187]:
+              - generic [ref=f2e189]:
+                - paragraph [ref=f2e190]: Meal scanner
+                - heading "Scan your meal" [level=3] [ref=f2e191]
+              - paragraph [ref=f2e197]: Add a meal photo or manual entry to review calories, protein, and your daily trend in a helpful, nonjudgmental way.
+              - button "Add a meal photo" [ref=f2e198] [cursor=pointer]
+  - alert [ref=f2e199]
+  - generic [aria-hidden] [ref=f2e200]: "0"

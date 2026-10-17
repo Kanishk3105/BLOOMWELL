@@ -1,0 +1,100 @@
+- generic [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - main [ref=f3e4]:
+      - generic [ref=f3e5]:
+        - generic [ref=f3e6]:
+          - generic [ref=f3e7]:
+            - paragraph [ref=f3e8]: Welcome
+            - heading "Test User, here’s your health snapshot" [level=2] [ref=f3e9]
+          - generic [ref=f3e10]:
+            - button "Open reminders" [ref=f3e11] [cursor=pointer]
+            - button "T Test User Update details" [ref=f3e15] [cursor=pointer]:
+              - generic [ref=f3e16]: T
+              - generic [ref=f3e17]:
+                - paragraph [ref=f3e18]: Test User
+                - paragraph [ref=f3e19]: Update details
+        - generic [ref=f3e20]:
+          - button "Today" [ref=f3e21] [cursor=pointer]
+          - button "Cycle" [ref=f3e22] [cursor=pointer]
+          - button "Nutrition" [ref=f3e23] [cursor=pointer]
+          - button "Insights" [ref=f3e24] [cursor=pointer]
+          - button "Health" [ref=f3e25] [cursor=pointer]
+          - button "Reminders" [ref=f3e26] [cursor=pointer]
+          - button "Profile" [ref=f3e27] [cursor=pointer]
+      - generic [ref=f3e28]:
+        - generic [ref=f3e29]:
+          - generic [ref=f3e30]:
+            - generic [ref=f3e31]: Cycle day
+            - generic [ref=f3e35]: "1"
+            - paragraph [ref=f3e36]: Current cycle progression
+          - generic [ref=f3e37]:
+            - generic [ref=f3e38]: Weight
+            - generic [ref=f3e43]: Add weight
+            - paragraph [ref=f3e44]: Track meaningful changes over time.
+          - generic [ref=f3e45]:
+            - generic [ref=f3e46]: Nutrition
+            - generic [ref=f3e53]: 520 kcal
+            - paragraph [ref=f3e54]: Protein 26g · Carbs 78g
+          - generic [ref=f3e55]:
+            - generic [ref=f3e56]: Next period
+            - generic [ref=f3e60]: Nov 15
+            - paragraph [ref=f3e61]: Estimated window based on your history
+        - generic [ref=f3e62]:
+          - generic [ref=f3e63]:
+            - generic [ref=f3e64]:
+              - generic [ref=f3e65]:
+                - paragraph [ref=f3e66]: Cycle overview
+                - heading "Cycle forecast" [level=3] [ref=f3e67]
+                - paragraph [ref=f3e68]: Estimated cycle day using your entered dates and cycle length.
+              - generic [ref=f3e69]:
+                - button "15d" [ref=f3e70] [cursor=pointer]
+                - button "30d" [ref=f3e71] [cursor=pointer]
+                - button "90d" [ref=f3e72] [cursor=pointer]
+                - button "1y" [ref=f3e73] [cursor=pointer]
+            - application [ref=f3e77]:
+              - generic [ref=f3e89]:
+                - generic [ref=f3e90]:
+                  - generic [ref=f3e91]: Oct 19
+                  - generic [ref=f3e93]: Oct 21
+                  - generic [ref=f3e95]: Oct 23
+                  - generic [ref=f3e97]: Oct 25
+                  - generic [ref=f3e99]: Oct 27
+                  - generic [ref=f3e101]: Oct 29
+                  - generic [ref=f3e103]: Nov 1
+                - generic [ref=f3e105]:
+                  - generic [ref=f3e106]: "1"
+                  - generic [ref=f3e108]: "5"
+                  - generic [ref=f3e110]: "9"
+                  - generic [ref=f3e112]: "13"
+                  - generic [ref=f3e114]: "15"
+                - generic [ref=f3e116]: Cycle day
+          - generic [ref=f3e117]:
+            - generic [ref=f3e118]:
+              - generic [ref=f3e120]:
+                - paragraph [ref=f3e121]: Quick log
+                - heading "Track today" [level=3] [ref=f3e122]
+              - generic [ref=f3e126]:
+                - generic [ref=f3e127]:
+                  - text: Last period start
+                  - textbox "Last period start" [ref=f3e128]: 2026-10-18
+                - generic [ref=f3e129]:
+                  - text: Weight check-in (kg)
+                  - spinbutton "Weight check-in (kg)" [ref=f3e130]
+              - button "Save today" [ref=f3e131] [cursor=pointer]
+            - generic [ref=f3e132]:
+              - generic [ref=f3e134]:
+                - paragraph [ref=f3e135]: Meal scanner
+                - heading "Scan your meal" [level=3] [ref=f3e136]
+              - paragraph [ref=f3e142]: Add a meal photo or manual entry to review calories, protein, and your daily trend in a helpful, nonjudgmental way.
+              - button "Add a meal photo" [ref=f3e143] [cursor=pointer]
+    - navigation [ref=f3e144]:
+      - generic [ref=f3e145]:
+        - button "Today" [ref=f3e146] [cursor=pointer]
+        - button "Cycle" [ref=f3e150] [cursor=pointer]
+        - button "Nutrition" [ref=f3e153] [cursor=pointer]
+        - button "Insights" [ref=f3e158] [cursor=pointer]
+        - button "Health" [ref=f3e161] [cursor=pointer]
+        - button "Reminders" [ref=f3e165] [cursor=pointer]
+        - button "Profile" [ref=f3e169] [cursor=pointer]
+  - alert [ref=f3e173]
+  - generic [aria-hidden] [ref=f3e174]: "1"

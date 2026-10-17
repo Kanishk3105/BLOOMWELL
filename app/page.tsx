@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import {
   Area,
   AreaChart,
@@ -30,7 +31,7 @@ import {
   Weight,
 } from 'lucide-react';
 
-type Tab = 'Today' | 'Cycle' | 'Nutrition' | 'Insights' | 'Reminders';
+type Tab = 'Today' | 'Cycle' | 'Nutrition' | 'Insights' | 'Health' | 'Reminders' | 'Profile';
 type Flow = 'light' | 'medium' | 'heavy';
 
 type Profile = {
@@ -42,6 +43,8 @@ type Profile = {
   weightKg: number;
   heightCm: number;
   timezone: string;
+  conditions: string;
+  notes: string;
 };
 
 type CycleEntry = {
@@ -62,6 +65,36 @@ type MealEntry = {
   carbs: number;
   fat: number;
   vitamins: string;
+  estimateConfidence?: AnalysisConfidence;
+  estimateAssumptions?: string;
+  nutritionSource?: NutritionSource;
+};
+
+type AnalysisConfidence = 'low' | 'medium' | 'high';
+
+type NutritionSource =
+  | 'manual'
+  | 'generic-estimate'
+  | 'adjusted-estimate'
+  | 'ai-estimate'
+  | 'adjusted-ai-estimate';
+
+type MealAnalysisResult = {
+  detected: true;
+  mealName: string;
+  calories: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatGrams: number;
+  potentialNutrients: string[];
+  confidence: AnalysisConfidence;
+  assumptions: string;
+};
+
+type MealEstimateDetails = Pick<MealAnalysisResult, 'confidence' | 'assumptions'>;
+
+type MealPreset = Omit<MealEntry, 'id' | 'date' | 'nutritionSource'> & {
+  id: string;
 };
 
 type Reminder = {
@@ -72,7 +105,8 @@ type Reminder = {
 };
 
 const STORAGE_KEY = 'bloomwell-user-data-v1';
-const tabs: Tab[] = ['Today', 'Cycle', 'Nutrition', 'Insights', 'Reminders'];
+const MAX_MEAL_IMAGE_BYTES = 8 * 1024 * 1024;
+const tabs: Tab[] = ['Today', 'Cycle', 'Nutrition', 'Insights', 'Health', 'Reminders', 'Profile'];
 const cycleRangeOptions = ['15d', '30d', '90d', '1y'];
 
 const defaultProfile: Profile = {
@@ -84,6 +118,8 @@ const defaultProfile: Profile = {
   weightKg: 0,
   heightCm: 0,
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+  conditions: '',
+  notes: '',
 };
 
 const defaultReminders: Reminder[] = [
@@ -94,18 +130,32 @@ const defaultReminders: Reminder[] = [
 
 const emptyCycleData = [{ label: 'No data', days: 0 }];
 
-function formatDate(value: string) {
-  if (!value) return 'Not set';
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
-}
-
 function formatShortDate(value: string) {
   if (!value) return '—';
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
+  const date = toDate(value);
+  return date ? new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(date) : '—';
+}
+
+function getLocalDateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function toDate(value: string) {
   if (!value) return null;
+  const dateParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateParts) {
+    const [, year, month, day] = dateParts;
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    return date.getFullYear() === Number(year) &&
+      date.getMonth() === Number(month) - 1 &&
+      date.getDate() === Number(day)
+      ? date
+      : null;
+  }
+
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -115,30 +165,59 @@ function getCycleDay(lastPeriod: string) {
   const start = toDate(lastPeriod);
   if (!start) return null;
   const now = new Date();
-  const diffMs = now.getTime() - start.getTime();
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+  const startDay = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const currentDay = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const cycleDay = Math.round((currentDay - startDay) / (1000 * 60 * 60 * 24)) + 1;
+  return cycleDay > 0 ? cycleDay : null;
 }
 
 function getNextPeriodDate(lastPeriod: string, cycleLength: number) {
   if (!lastPeriod) return null;
   const start = toDate(lastPeriod);
-  if (!start) return null;
+  if (!start || !Number.isFinite(cycleLength) || cycleLength < 1) return null;
+  const cycleLengthDays = Math.round(cycleLength);
+  if (cycleLengthDays < 1) return null;
+
+  const today = new Date();
+  const startDay = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const currentDay = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const daysSinceStart = Math.floor((currentDay - startDay) / (1000 * 60 * 60 * 24));
+  const cyclesToAdd = daysSinceStart >= 0 ? Math.floor(daysSinceStart / cycleLengthDays) + 1 : 1;
   const date = new Date(start);
-  date.setDate(date.getDate() + cycleLength);
+  date.setDate(date.getDate() + cyclesToAdd * cycleLengthDays);
   return date;
 }
 
 function getObservedCycleData(entries: CycleEntry[]) {
-  const sorted = [...entries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  if (sorted.length < 2) return [];
+  const sortedDates = [...new Set(entries.map((entry) => entry.date))].sort();
+  if (sortedDates.length < 2) return [];
+
+  const periodStarts: Date[] = [];
+  let previousDate: Date | null = null;
+
+  for (const value of sortedDates) {
+    const date = toDate(value);
+    if (!date) continue;
+    const dateIndex = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+    const previousIndex = previousDate
+      ? Date.UTC(previousDate.getFullYear(), previousDate.getMonth(), previousDate.getDate())
+      : null;
+
+    if (previousIndex === null || dateIndex - previousIndex > 1000 * 60 * 60 * 24) {
+      periodStarts.push(date);
+    }
+
+    previousDate = date;
+  }
 
   const data: { label: string; days: number }[] = [];
 
-  for (let i = 1; i < sorted.length; i += 1) {
-    const prev = toDate(sorted[i - 1].date);
-    const curr = toDate(sorted[i].date);
-    if (!prev || !curr) continue;
-    const diffDays = Math.round((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
+  for (let i = 1; i < periodStarts.length; i += 1) {
+    const prev = periodStarts[i - 1];
+    const curr = periodStarts[i];
+    const prevDay = Date.UTC(prev.getFullYear(), prev.getMonth(), prev.getDate());
+    const currDay = Date.UTC(curr.getFullYear(), curr.getMonth(), curr.getDate());
+    const diffDays = Math.round((currDay - prevDay) / (1000 * 60 * 60 * 24));
     data.push({
       label: new Intl.DateTimeFormat('en', { month: 'short' }).format(curr),
       days: diffDays,
@@ -146,6 +225,28 @@ function getObservedCycleData(entries: CycleEntry[]) {
   }
 
   return data;
+}
+
+function getCycleForecastData(lastPeriod: string, cycleLength: number, range: string) {
+  const start = toDate(lastPeriod);
+  if (!start || !Number.isFinite(cycleLength) || cycleLength < 1) return [];
+  const cycleLengthDays = Math.round(cycleLength);
+  if (cycleLengthDays < 1) return [];
+
+  const rangeDays: Record<string, number> = { '15d': 15, '30d': 30, '90d': 90, '1y': 365 };
+  const dayCount = rangeDays[range] ?? rangeDays['15d'];
+  const today = new Date();
+  const todayIndex = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const startIndex = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  if (startIndex > todayIndex) return [];
+
+  return Array.from({ length: dayCount }, (_, offset) => {
+    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
+    const dateIndex = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+    const daysSinceStart = Math.floor((dateIndex - startIndex) / (1000 * 60 * 60 * 24));
+    const cycleDay = (daysSinceStart % cycleLengthDays) + 1;
+    return { label: formatShortDate(getLocalDateInputValue(date)), value: cycleDay };
+  });
 }
 
 function getLastMealTotals(entries: MealEntry[]) {
@@ -161,98 +262,171 @@ function getLastMealTotals(entries: MealEntry[]) {
   );
 }
 
-const mealEstimates = [
+function getMealTotalsForDate(entries: MealEntry[], date: string) {
+  return getLastMealTotals(entries.filter((entry) => entry.date === date));
+}
+
+const mealPresets: MealPreset[] = [
   {
-    patterns: ['salad', 'greens', 'bowl', 'avocado', 'quinoa'],
-    name: 'Salad bowl',
+    id: 'salad',
+    name: 'Salad with grains and vegetables',
     calories: 420,
     protein: 24,
     carbs: 35,
     fat: 18,
-    vitamins: 'Vitamin C, folate, vitamin K',
+    vitamins: 'Potential sources: vitamin C, folate, vitamin K',
   },
   {
-    patterns: ['pasta', 'spaghetti', 'noodles', 'ramen'],
-    name: 'Pasta meal',
+    id: 'pasta',
+    name: 'Pasta with sauce',
     calories: 560,
     protein: 28,
     carbs: 68,
     fat: 21,
-    vitamins: 'B vitamins, iron, folate',
+    vitamins: 'Potential sources: B vitamins, iron, folate',
   },
   {
-    patterns: ['smoothie', 'shake', 'berry', 'banana'],
-    name: 'Smoothie bowl',
+    id: 'smoothie',
+    name: 'Fruit smoothie',
     calories: 310,
     protein: 18,
     carbs: 42,
     fat: 8,
-    vitamins: 'Vitamin C, potassium, folate',
+    vitamins: 'Potential sources: vitamin C, potassium, folate',
   },
   {
-    patterns: ['egg', 'omelette', 'toast', 'breakfast'],
-    name: 'Egg toast breakfast',
+    id: 'eggs',
+    name: 'Eggs with toast',
     calories: 390,
     protein: 22,
     carbs: 34,
     fat: 17,
-    vitamins: 'Vitamin B12, choline, vitamin D',
+    vitamins: 'Potential sources: vitamin B12, choline, vitamin D',
   },
   {
-    patterns: ['chicken', 'rice', 'protein', 'grain'],
-    name: 'Protein rice plate',
+    id: 'chicken-rice',
+    name: 'Chicken with rice',
     calories: 640,
     protein: 42,
     carbs: 58,
     fat: 23,
-    vitamins: 'Vitamin B6, iron, niacin',
+    vitamins: 'Potential sources: vitamin B6, iron, niacin',
+  },
+  {
+    id: 'fish',
+    name: 'Fish with vegetables',
+    calories: 480,
+    protein: 36,
+    carbs: 28,
+    fat: 20,
+    vitamins: 'Potential sources: vitamin D, vitamin B12, selenium',
+  },
+  {
+    id: 'beans',
+    name: 'Beans or lentils with rice',
+    calories: 520,
+    protein: 22,
+    carbs: 78,
+    fat: 10,
+    vitamins: 'Potential sources: folate, iron, magnesium',
+  },
+  {
+    id: 'sandwich',
+    name: 'Sandwich',
+    calories: 450,
+    protein: 24,
+    carbs: 48,
+    fat: 18,
+    vitamins: 'Potential sources vary by filling and bread',
+  },
+  {
+    id: 'yogurt',
+    name: 'Yogurt with fruit',
+    calories: 280,
+    protein: 16,
+    carbs: 38,
+    fat: 7,
+    vitamins: 'Potential sources: calcium, vitamin B12, vitamin C',
+  },
+  {
+    id: 'soup',
+    name: 'Vegetable soup',
+    calories: 260,
+    protein: 10,
+    carbs: 38,
+    fat: 8,
+    vitamins: 'Potential sources vary by ingredients',
+  },
+  {
+    id: 'pizza',
+    name: 'Pizza',
+    calories: 620,
+    protein: 26,
+    carbs: 72,
+    fat: 24,
+    vitamins: 'Nutrient content varies by toppings and portion',
   },
 ];
 
-function getMealEstimate(fileName: string) {
-  const normalized = (fileName || '').toLowerCase();
-
-  const match = mealEstimates.find((entry) =>
-    entry.patterns.some((pattern) => normalized.includes(pattern)),
+function isMealAnalysisResult(value: unknown): value is MealAnalysisResult {
+  if (!value || typeof value !== 'object') return false;
+  const result = value as Record<string, unknown>;
+  return (
+    result.detected === true &&
+    typeof result.mealName === 'string' &&
+    Number.isInteger(result.calories) &&
+    Number.isFinite(result.proteinGrams) &&
+    Number.isFinite(result.carbsGrams) &&
+    Number.isFinite(result.fatGrams) &&
+    Array.isArray(result.potentialNutrients) &&
+    result.potentialNutrients.every((item) => typeof item === 'string') &&
+    ['low', 'medium', 'high'].includes(String(result.confidence)) &&
+    typeof result.assumptions === 'string'
   );
-
-  return match ?? {
-    name: 'Mixed meal estimate',
-    calories: 480,
-    protein: 24,
-    carbs: 52,
-    fat: 18,
-    vitamins: 'Vitamin C, B vitamins, iron',
-  };
 }
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('Today');
   const [selectedRange, setSelectedRange] = useState<string>('15d');
+  const [todaySaveMessage, setTodaySaveMessage] = useState('');
   const [profile, setProfile] = useState<Profile>(defaultProfile);
   const [cycleEntries, setCycleEntries] = useState<CycleEntry[]>([]);
   const [mealEntries, setMealEntries] = useState<MealEntry[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>(defaultReminders);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mealImagePreview, setMealImagePreview] = useState<string | null>(null);
+  const [mealImageFile, setMealImageFile] = useState<File | null>(null);
+  const [mealPhotoConsent, setMealPhotoConsent] = useState(false);
+  const [isAnalyzingMeal, setIsAnalyzingMeal] = useState(false);
+  const [mealEstimateDetails, setMealEstimateDetails] = useState<MealEstimateDetails | null>(null);
   const [mealAnalysisMessage, setMealAnalysisMessage] = useState('');
+  const [mealPhotoError, setMealPhotoError] = useState('');
+  const [selectedMealPreset, setSelectedMealPreset] = useState('');
   const [newCycleEntry, setNewCycleEntry] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: getLocalDateInputValue(),
     flow: 'medium' as Flow,
     cramps: 3,
     mood: 'steady',
     notes: '',
   });
   const [newMealEntry, setNewMealEntry] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: getLocalDateInputValue(),
     name: '',
     calories: 0,
     protein: 0,
     carbs: 0,
     fat: 0,
     vitamins: '',
+    nutritionSource: 'manual' as NutritionSource,
   });
 
+  useEffect(() => {
+    return () => {
+      if (mealImagePreview) URL.revokeObjectURL(mealImagePreview);
+    };
+  }, [mealImagePreview]);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- Restore browser-only storage after hydration to avoid markup mismatch. */
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return;
@@ -273,16 +447,11 @@ export default function Home() {
       // Safe fallback on malformed local data.
     }
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile, cycleEntries, mealEntries, reminders }));
   }, [profile, cycleEntries, mealEntries, reminders]);
-
-  const cycleDay = useMemo(() => getCycleDay(profile.lastPeriod), [profile.lastPeriod]);
-  const nextPeriod = useMemo(
-    () => getNextPeriodDate(profile.lastPeriod, profile.cycleLength),
-    [profile.lastPeriod, profile.cycleLength],
-  );
 
   const observedCycleRange = useMemo(() => {
     const data = getObservedCycleData(cycleEntries);
@@ -290,41 +459,28 @@ export default function Home() {
     return data.slice(-Math.min(data.length, 6));
   }, [cycleEntries]);
 
-  const cycleChartData = useMemo(() => {
-    if (selectedRange === '15d') {
-      return [
-        { label: 'Day 1', value: 0 },
-        { label: 'Day 5', value: 15 },
-        { label: 'Day 10', value: 40 },
-        { label: 'Day 15', value: 68 },
-      ];
-    }
-    if (selectedRange === '30d') {
-      return [
-        { label: 'W1', value: 24 },
-        { label: 'W2', value: 34 },
-        { label: 'W3', value: 42 },
-        { label: 'W4', value: 60 },
-      ];
-    }
-    if (selectedRange === '90d') {
-      return [
-        { label: 'Jan', value: 28 },
-        { label: 'Feb', value: 30 },
-        { label: 'Mar', value: 29 },
-      ];
-    }
-    return [
-      { label: 'Jan', value: 28 },
-      { label: 'Feb', value: 31 },
-      { label: 'Mar', value: 29 },
-      { label: 'Apr', value: 30 },
-      { label: 'May', value: 28 },
-      { label: 'Jun', value: 32 },
-    ];
-  }, [selectedRange]);
+  const observedAverageCycleLength = useMemo(() => {
+    if (observedCycleRange.length === 0) return null;
+    const average =
+      observedCycleRange.reduce((sum, entry) => sum + entry.days, 0) / observedCycleRange.length;
+    return Math.round(average);
+  }, [observedCycleRange]);
+  const forecastCycleLength = observedAverageCycleLength ?? profile.cycleLength;
+  const cycleDay = useMemo(() => getCycleDay(profile.lastPeriod), [profile.lastPeriod]);
+  const nextPeriod = useMemo(
+    () => getNextPeriodDate(profile.lastPeriod, forecastCycleLength),
+    [forecastCycleLength, profile.lastPeriod],
+  );
+  const cycleChartData = useMemo(
+    () => getCycleForecastData(profile.lastPeriod, forecastCycleLength, selectedRange),
+    [forecastCycleLength, profile.lastPeriod, selectedRange],
+  );
 
-  const mealTotals = useMemo(() => getLastMealTotals(mealEntries), [mealEntries]);
+  const today = getLocalDateInputValue();
+  const mealTotals = useMemo(
+    () => getMealTotalsForDate(mealEntries, today),
+    [mealEntries, today],
+  );
 
   const insightList = useMemo(() => {
     const insights: string[] = [];
@@ -355,7 +511,7 @@ export default function Home() {
   };
 
   const addCycleEntry = () => {
-    const date = newCycleEntry.date || new Date().toISOString().slice(0, 10);
+    const date = newCycleEntry.date || getLocalDateInputValue();
     const nextEntry: CycleEntry = {
       id: `${Date.now()}`,
       date,
@@ -367,7 +523,7 @@ export default function Home() {
 
     setCycleEntries((prev) => [...prev, nextEntry].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
     setNewCycleEntry({
-      date: new Date().toISOString().slice(0, 10),
+      date: getLocalDateInputValue(),
       flow: 'medium',
       cramps: 3,
       mood: 'steady',
@@ -381,21 +537,145 @@ export default function Home() {
 
   const handleMealImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    event.target.value = '';
+    setMealImageFile(null);
+    setMealPhotoConsent(false);
+    setMealImagePreview(null);
+    setMealAnalysisMessage('');
+    setMealPhotoError('');
+    setMealEstimateDetails(null);
+    setSelectedMealPreset('');
+
+    setNewMealEntry((current) => {
+      if (current.nutritionSource === 'manual') return current;
+      return {
+        ...current,
+        name: '',
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        vitamins: '',
+        nutritionSource: 'manual',
+      };
+    });
+
     if (!file) return;
 
-    const objectUrl = URL.createObjectURL(file);
-    const estimate = getMealEstimate(file.name);
+    if (!file.type.startsWith('image/')) {
+      setMealPhotoError('Please choose an image file.');
+      return;
+    }
 
+    if (file.size > MAX_MEAL_IMAGE_BYTES) {
+      setMealPhotoError('Choose an image smaller than 8 MB.');
+      return;
+    }
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setMealPhotoError('Use a JPEG, PNG, or WebP image.');
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setMealImageFile(file);
     setMealImagePreview(objectUrl);
-    setMealAnalysisMessage(`Demo AI estimate: ${estimate.name} detected with ${estimate.vitamins}.`);
-    setNewMealEntry((prev) => ({
-      ...prev,
-      name: estimate.name,
-      calories: estimate.calories,
-      protein: estimate.protein,
-      carbs: estimate.carbs,
-      fat: estimate.fat,
-      vitamins: estimate.vitamins,
+    setMealAnalysisMessage(
+      'Photo previewed locally. It is sent to Google Gemini only after you consent and choose Analyze.',
+    );
+  };
+
+  const applyMealPreset = () => {
+    const preset = mealPresets.find((item) => item.id === selectedMealPreset);
+    if (!preset) return;
+
+    setNewMealEntry((current) => ({
+      ...current,
+      name: preset.name,
+      calories: preset.calories,
+      protein: preset.protein,
+      carbs: preset.carbs,
+      fat: preset.fat,
+      vitamins: preset.vitamins,
+      nutritionSource: 'generic-estimate',
+    }));
+    setMealEstimateDetails(null);
+  };
+
+  const analyzeMealPhoto = async () => {
+    if (!mealImageFile || !mealPhotoConsent) {
+      setMealPhotoError('Choose a photo and confirm consent before starting analysis.');
+      return;
+    }
+
+    setIsAnalyzingMeal(true);
+    setMealPhotoError('');
+    setMealAnalysisMessage('');
+
+    try {
+      const formData = new FormData();
+      formData.append('image', mealImageFile);
+      const response = await fetch('/api/nutrition/analyze', {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(50_000),
+      });
+      const result: unknown = await response.json();
+
+      if (!response.ok) {
+        const errorMessage =
+          result && typeof result === 'object' && 'error' in result && typeof result.error === 'string'
+            ? result.error
+            : 'Google Gemini could not analyze this photo. Please try again.';
+        throw new Error(errorMessage);
+      }
+
+      if (!isMealAnalysisResult(result)) {
+        throw new Error('Google Gemini returned incomplete nutrition data. Please try again.');
+      }
+
+      const analysisDetails = {
+        confidence: result.confidence,
+        assumptions: result.assumptions,
+      };
+      setNewMealEntry((current) => ({
+        ...current,
+        name: result.mealName,
+        calories: result.calories,
+        protein: result.proteinGrams,
+        carbs: result.carbsGrams,
+        fat: result.fatGrams,
+        vitamins: result.potentialNutrients.join(', '),
+        nutritionSource: 'ai-estimate',
+      }));
+      setMealEstimateDetails(analysisDetails);
+      setMealAnalysisMessage(
+        `Gemini estimate ready for ${result.mealName}. Confidence: ${result.confidence}. Review and edit before saving.`,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error && error.name === 'TimeoutError'
+          ? 'Analysis timed out. Try again with a smaller or clearer photo.'
+          : error instanceof Error
+            ? error.message
+            : 'Analysis failed. Please try again.';
+      setMealPhotoError(message);
+    } finally {
+      setIsAnalyzingMeal(false);
+    }
+  };
+
+  const updateMealNutrition = (
+    changes: Partial<Pick<typeof newMealEntry, 'name' | 'calories' | 'protein' | 'carbs' | 'fat' | 'vitamins'>>,
+  ) => {
+    setNewMealEntry((current) => ({
+      ...current,
+      ...changes,
+      nutritionSource: current.nutritionSource === 'generic-estimate'
+        ? 'adjusted-estimate'
+        : current.nutritionSource === 'ai-estimate'
+          ? 'adjusted-ai-estimate'
+          : current.nutritionSource,
     }));
   };
 
@@ -411,20 +691,29 @@ export default function Home() {
       carbs: Number(newMealEntry.carbs) || 0,
       fat: Number(newMealEntry.fat) || 0,
       vitamins: newMealEntry.vitamins || 'Not entered',
+      nutritionSource: newMealEntry.nutritionSource,
+      estimateConfidence: mealEstimateDetails?.confidence,
+      estimateAssumptions: mealEstimateDetails?.assumptions,
     };
 
     setMealEntries((prev) => [item, ...prev]);
     setNewMealEntry({
-      date: new Date().toISOString().slice(0, 10),
+      date: getLocalDateInputValue(),
       name: '',
       calories: 0,
       protein: 0,
       carbs: 0,
       fat: 0,
       vitamins: '',
+      nutritionSource: 'manual',
     });
+    setSelectedMealPreset('');
+    setMealEstimateDetails(null);
     setMealAnalysisMessage('');
     setMealImagePreview(null);
+    setMealImageFile(null);
+    setMealPhotoConsent(false);
+    setMealPhotoError('');
   };
 
   const toggleReminder = (id: string) => {
@@ -466,7 +755,9 @@ export default function Home() {
             <span className="text-sm font-medium">Next period</span>
             <CalendarDays size={18} />
           </div>
-          <div className="text-3xl font-semibold text-slate-900">{nextPeriod ? formatShortDate(nextPeriod.toISOString()) : 'Data needed'}</div>
+          <div className="text-3xl font-semibold text-slate-900">
+            {nextPeriod ? formatShortDate(getLocalDateInputValue(nextPeriod)) : 'Data needed'}
+          </div>
           <p className="mt-2 text-sm text-slate-500">Estimated window based on your history</p>
         </div>
       </section>
@@ -476,7 +767,8 @@ export default function Home() {
           <div className="mb-5 flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Cycle overview</p>
-              <h3 className="mt-1 text-xl font-semibold text-slate-900">Pattern prediction</h3>
+              <h3 className="mt-1 text-xl font-semibold text-slate-900">Cycle forecast</h3>
+              <p className="mt-1 text-xs text-slate-500">Estimated cycle day using your entered dates and cycle length.</p>
             </div>
             <div className="flex gap-2 rounded-full bg-slate-100 p-1">
               {cycleRangeOptions.map((range) => (
@@ -494,21 +786,33 @@ export default function Home() {
           </div>
 
           <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={cycleChartData}>
-                <defs>
-                  <linearGradient id="cycleFill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.06} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                <Tooltip />
-                <Area type="monotone" dataKey="value" stroke="#7c3aed" strokeWidth={3} fill="url(#cycleFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {cycleChartData.length === 0 ? (
+              <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 text-center text-sm leading-6 text-slate-500">
+                Add a valid last period start date to see a cycle forecast based on your own details.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={cycleChartData}>
+                  <defs>
+                    <linearGradient id="cycleFill" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.06} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                  <YAxis
+                    domain={[1, 'dataMax']}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    label={{ value: 'Cycle day', angle: -90, position: 'insideLeft', fill: '#64748b' }}
+                  />
+                  <Tooltip formatter={(value) => [`Cycle day ${value}`, 'Estimate']} />
+                  <Area type="monotone" dataKey="value" stroke="#7c3aed" strokeWidth={3} fill="url(#cycleFill)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -528,7 +832,10 @@ export default function Home() {
                 <input
                   type="date"
                   value={profile.lastPeriod}
-                  onChange={(event) => setProfile((current) => ({ ...current, lastPeriod: event.target.value }))}
+                  onChange={(event) => {
+                    setProfile((current) => ({ ...current, lastPeriod: event.target.value }));
+                    setTodaySaveMessage('');
+                  }}
                   className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
                 />
               </label>
@@ -539,15 +846,23 @@ export default function Home() {
                   type="number"
                   step="0.1"
                   value={profile.weightKg || ''}
-                  onChange={(event) => setProfile((current) => ({ ...current, weightKg: Number(event.target.value) || 0 }))}
+                  onChange={(event) => {
+                    setProfile((current) => ({ ...current, weightKg: Number(event.target.value) || 0 }));
+                    setTodaySaveMessage('');
+                  }}
                   className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
                 />
               </label>
             </div>
 
-            <button className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-medium text-white transition hover:bg-slate-800">
+            <button
+              type="button"
+              onClick={() => setTodaySaveMessage('Today’s check-in is saved in this browser.')}
+              className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-medium text-white transition hover:bg-slate-800"
+            >
               Save today
             </button>
+            {todaySaveMessage ? <p role="status" className="mt-2 text-center text-sm text-emerald-700">{todaySaveMessage}</p> : null}
           </div>
 
           <div className="rounded-[28px] border border-violet-100 bg-gradient-to-br from-violet-50 to-rose-50 p-5">
@@ -563,7 +878,11 @@ export default function Home() {
             <p className="text-sm leading-6 text-slate-600">
               Add a meal photo or manual entry to review calories, protein, and your daily trend in a helpful, nonjudgmental way.
             </p>
-            <button className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-violet-600 px-4 py-3 font-medium text-white transition hover:bg-violet-500">
+            <button
+              type="button"
+              onClick={() => setActiveTab('Nutrition')}
+              className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-violet-600 px-4 py-3 font-medium text-white transition hover:bg-violet-500"
+            >
               Add a meal photo
             </button>
           </div>
@@ -696,7 +1015,7 @@ export default function Home() {
 
           <div className="rounded-[24px] bg-gradient-to-br from-violet-50 to-fuchsia-50 p-4">
             <div className="text-2xl font-semibold text-slate-900">
-              {nextPeriod ? formatLongDate(nextPeriod.toISOString().slice(0, 10)) : 'Waiting for start date'}
+              {nextPeriod ? formatLongDate(getLocalDateInputValue(nextPeriod)) : 'Waiting for start date'}
             </div>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               This is an estimate based on your entered cycle history and should be reviewed with your own context.
@@ -735,26 +1054,138 @@ export default function Home() {
         <div className="mb-5 rounded-[24px] border border-violet-100 bg-violet-50/60 p-4">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-violet-600">AI meal scanner</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-violet-600">Google Gemini meal analysis</p>
               <h4 className="mt-1 text-lg font-semibold text-slate-900">Capture image</h4>
             </div>
             <label className="inline-flex cursor-pointer items-center justify-center rounded-full bg-violet-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-violet-500">
               Upload photo
-              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleMealImageUpload} />
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                capture="environment"
+                disabled={isAnalyzingMeal}
+                className="hidden"
+                onChange={handleMealImageUpload}
+              />
             </label>
           </div>
 
           {mealImagePreview ? (
             <div className="mt-3 overflow-hidden rounded-[20px] border border-violet-200 bg-white">
-              <img src={mealImagePreview} alt="Meal preview" className="h-48 w-full object-cover" />
+              <Image
+                src={mealImagePreview}
+                alt="Meal preview"
+                width={960}
+                height={320}
+                unoptimized
+                className="h-48 w-full object-cover"
+              />
             </div>
           ) : null}
 
-          {mealAnalysisMessage ? (
-            <p className="mt-3 rounded-2xl bg-white/80 px-3 py-2 text-sm text-slate-700">{mealAnalysisMessage}</p>
-          ) : (
-            <p className="mt-3 text-sm text-slate-600">Take a photo or upload a meal image to auto-fill calories, protein, carbs, fat, and vitamin estimates.</p>
-          )}
+          <p className="mt-3 rounded-2xl bg-white/80 px-3 py-2 text-sm leading-6 text-slate-700">
+            {mealAnalysisMessage || 'Photo analysis is optional. The preview stays in this browser until you consent and choose Analyze; you can also use a generic estimate or enter details manually.'}
+          </p>
+          {mealPhotoError ? <p role="alert" className="mt-2 text-sm font-medium text-rose-700">{mealPhotoError}</p> : null}
+
+          <div className="mt-3 flex flex-col gap-3 rounded-2xl bg-white/80 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex items-start gap-2 text-sm leading-5 text-slate-700">
+              <input
+                type="checkbox"
+                checked={mealPhotoConsent}
+                disabled={!mealImageFile || isAnalyzingMeal}
+                onChange={(event) => setMealPhotoConsent(event.target.checked)}
+                className="mt-1 accent-violet-600"
+              />
+              <span>
+                I agree to send this photo to Google for analysis. I understand that unpaid Gemini API use may allow Google to use submitted content to improve services and have it reviewed by people. I will not upload sensitive, confidential, or personal information.{' '}
+                <a
+                  href="https://ai.google.dev/gemini-api/terms"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-violet-700 underline underline-offset-2"
+                >
+                  Read Google&apos;s Gemini API terms
+                </a>
+                .
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={analyzeMealPhoto}
+              disabled={!mealImageFile || !mealPhotoConsent || isAnalyzingMeal}
+              className="shrink-0 rounded-2xl bg-violet-600 px-4 py-3 font-medium text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isAnalyzingMeal ? 'Analyzing…' : 'Analyze with Gemini'}
+            </button>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            BloomWell does not save the photo. Gemini returns approximate nutrition values; verify the portion and edit the results.
+          </p>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+            <label className="text-sm font-medium text-slate-600">
+              Optional generic estimate
+              <select
+                value={selectedMealPreset}
+                onChange={(event) => setSelectedMealPreset(event.target.value)}
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300"
+              >
+                <option value="">Choose a typical meal</option>
+                {mealPresets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>{preset.name}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={applyMealPreset}
+              disabled={!selectedMealPreset}
+              className="self-end rounded-2xl bg-violet-100 px-4 py-3 font-medium text-violet-800 transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Use estimate
+            </button>
+          </div>
+
+          {newMealEntry.nutritionSource !== 'manual' ? (
+            <div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-amber-900">
+                    {newMealEntry.nutritionSource === 'generic-estimate'
+                      ? 'Generic estimate · typical serving'
+                      : newMealEntry.nutritionSource === 'adjusted-estimate'
+                        ? 'Adjusted generic estimate'
+                        : newMealEntry.nutritionSource === 'ai-estimate'
+                          ? 'Gemini estimate · review before saving'
+                          : 'Adjusted Gemini estimate'}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-amber-800">
+                    Approximate values only. Actual nutrition varies with portion size, ingredients, and preparation.
+                  </p>
+                  {mealEstimateDetails ? (
+                    <p className="mt-1 text-xs leading-5 text-amber-800">
+                      Confidence: {mealEstimateDetails.confidence}. {mealEstimateDetails.assumptions}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  { label: 'Calories', value: `${newMealEntry.calories} kcal` },
+                  { label: 'Protein', value: `${newMealEntry.protein} g` },
+                  { label: 'Carbs', value: `${newMealEntry.carbs} g` },
+                  { label: 'Fat', value: `${newMealEntry.fat} g` },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl bg-white/80 p-3">
+                    <p className="text-xs text-amber-800">{item.label}</p>
+                    <p className="mt-1 font-semibold text-slate-900">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs leading-5 text-amber-900">{newMealEntry.vitamins}</p>
+            </div>
+          ) : null}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
@@ -762,7 +1193,7 @@ export default function Home() {
             Meal name
             <input
               value={newMealEntry.name}
-              onChange={(event) => setNewMealEntry((prev) => ({ ...prev, name: event.target.value }))}
+              onChange={(event) => updateMealNutrition({ name: event.target.value })}
               className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
             />
           </label>
@@ -781,8 +1212,9 @@ export default function Home() {
             Calories
             <input
               type="number"
+              min={0}
               value={newMealEntry.calories || ''}
-              onChange={(event) => setNewMealEntry((prev) => ({ ...prev, calories: Number(event.target.value) || 0 }))}
+              onChange={(event) => updateMealNutrition({ calories: Number(event.target.value) || 0 })}
               className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
             />
           </label>
@@ -791,8 +1223,10 @@ export default function Home() {
             Protein
             <input
               type="number"
+              min={0}
+              step="0.1"
               value={newMealEntry.protein || ''}
-              onChange={(event) => setNewMealEntry((prev) => ({ ...prev, protein: Number(event.target.value) || 0 }))}
+              onChange={(event) => updateMealNutrition({ protein: Number(event.target.value) || 0 })}
               className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
             />
           </label>
@@ -801,8 +1235,22 @@ export default function Home() {
             Carbs
             <input
               type="number"
+              min={0}
+              step="0.1"
               value={newMealEntry.carbs || ''}
-              onChange={(event) => setNewMealEntry((prev) => ({ ...prev, carbs: Number(event.target.value) || 0 }))}
+              onChange={(event) => updateMealNutrition({ carbs: Number(event.target.value) || 0 })}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
+            />
+          </label>
+
+          <label className="text-sm font-medium text-slate-600">
+            Fat
+            <input
+              type="number"
+              min={0}
+              step="0.1"
+              value={newMealEntry.fat || ''}
+              onChange={(event) => updateMealNutrition({ fat: Number(event.target.value) || 0 })}
               className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
             />
           </label>
@@ -811,13 +1259,18 @@ export default function Home() {
             Vitamins / nutrients
             <input
               value={newMealEntry.vitamins}
-              onChange={(event) => setNewMealEntry((prev) => ({ ...prev, vitamins: event.target.value }))}
+              onChange={(event) => updateMealNutrition({ vitamins: event.target.value })}
               className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
             />
           </label>
 
           <div className="flex items-end md:col-span-2 xl:col-span-3">
-            <button onClick={addMealEntry} className="w-full rounded-2xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-500">
+            <button
+              type="button"
+              onClick={addMealEntry}
+              disabled={!newMealEntry.name.trim()}
+              className="w-full rounded-2xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
               Save meal
             </button>
           </div>
@@ -877,11 +1330,31 @@ export default function Home() {
             <div className="space-y-3">
               {mealEntries.slice(0, 5).map((entry) => (
                 <div key={entry.id} className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-medium text-slate-800">{entry.name}</p>
                     <span className="text-sm text-slate-500">{entry.calories} kcal</span>
                   </div>
-                  <p className="mt-1 text-sm text-slate-500">{formatShortDate(entry.date)}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                    <span>{formatShortDate(entry.date)}</span>
+                    {entry.nutritionSource === 'generic-estimate' ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Generic estimate</span>
+                    ) : null}
+                    {entry.nutritionSource === 'adjusted-estimate' ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Adjusted estimate</span>
+                    ) : null}
+                    {entry.nutritionSource === 'ai-estimate' ? (
+                      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-800">Gemini estimate</span>
+                    ) : null}
+                    {entry.nutritionSource === 'adjusted-ai-estimate' ? (
+                      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-800">Adjusted Gemini estimate</span>
+                    ) : null}
+                  </div>
+                  {entry.estimateConfidence ? (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Gemini confidence: {entry.estimateConfidence}
+                      {entry.estimateAssumptions ? ` · ${entry.estimateAssumptions}` : ''}
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -919,6 +1392,63 @@ export default function Home() {
     </div>
   );
 
+  const renderHealth = () => (
+    <div className="space-y-6">
+      <section className="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-[0_24px_60px_rgba(118,107,155,0.08)] backdrop-blur-xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">My health</p>
+            <h3 className="mt-1 text-xl font-semibold text-slate-900">Conditions, symptoms, and care notes</h3>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="block text-sm font-medium text-slate-600">
+            Conditions or diagnoses
+            <textarea
+              rows={4}
+              value={profile.conditions}
+              onChange={(event) => setProfile((current) => ({ ...current, conditions: event.target.value }))}
+              placeholder="PCOS, thyroid, anemia, endometriosis, etc."
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
+            />
+          </label>
+
+          <label className="block text-sm font-medium text-slate-600">
+            Notes for your clinician
+            <textarea
+              rows={4}
+              value={profile.notes}
+              onChange={(event) => setProfile((current) => ({ ...current, notes: event.target.value }))}
+              placeholder="Symptoms, questions, recent changes, doctors, medications..."
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-3">
+        <div className="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-[0_24px_60px_rgba(118,107,155,0.08)] backdrop-blur-xl">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Check-in</p>
+          <div className="mt-3 text-3xl font-semibold text-slate-900">{profile.conditions ? 'Recorded' : 'No entries yet'}</div>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Add conditions or symptom patterns to keep your care history organized.</p>
+        </div>
+
+        <div className="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-[0_24px_60px_rgba(118,107,155,0.08)] backdrop-blur-xl">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Symptoms</p>
+          <div className="mt-3 text-3xl font-semibold text-slate-900">{cycleEntries.length}</div>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Your cycle logs give you a timeline of symptoms and patterns to review.</p>
+        </div>
+
+        <div className="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-[0_24px_60px_rgba(118,107,155,0.08)] backdrop-blur-xl">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Care note</p>
+          <div className="mt-3 text-3xl font-semibold text-slate-900">{profile.notes ? 'Saved' : 'Add note'}</div>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Keep appointment questions, medication notes, and symptom changes in one place.</p>
+        </div>
+      </section>
+    </div>
+  );
+
   const renderReminders = () => (
     <div className="space-y-6">
       <section className="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-[0_24px_60px_rgba(118,107,155,0.08)] backdrop-blur-xl">
@@ -951,6 +1481,98 @@ export default function Home() {
     </div>
   );
 
+  const renderProfile = () => (
+    <div className="space-y-6">
+      <section className="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-[0_24px_60px_rgba(118,107,155,0.08)] backdrop-blur-xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Profile</p>
+            <h3 className="mt-1 text-xl font-semibold text-slate-900">Your details</h3>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="text-sm font-medium text-slate-600">
+            Name
+            <input
+              value={profile.name}
+              onChange={(event) => setProfile((current) => ({ ...current, name: event.target.value }))}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
+            />
+          </label>
+
+          <label className="text-sm font-medium text-slate-600">
+            Date of birth
+            <input
+              type="date"
+              value={profile.dob}
+              onChange={(event) => setProfile((current) => ({ ...current, dob: event.target.value }))}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
+            />
+          </label>
+
+          <label className="text-sm font-medium text-slate-600">
+            Height (cm)
+            <input
+              type="number"
+              min={80}
+              max={220}
+              value={profile.heightCm || ''}
+              onChange={(event) => setProfile((current) => ({ ...current, heightCm: Number(event.target.value) || 0 }))}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
+            />
+          </label>
+
+          <label className="text-sm font-medium text-slate-600">
+            Weight (kg)
+            <input
+              type="number"
+              min={30}
+              max={250}
+              step="0.1"
+              value={profile.weightKg || ''}
+              onChange={(event) => setProfile((current) => ({ ...current, weightKg: Number(event.target.value) || 0 }))}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
+            />
+          </label>
+
+          <label className="text-sm font-medium text-slate-600">
+            Cycle length (days)
+            <input
+              type="number"
+              min={20}
+              max={60}
+              value={profile.cycleLength}
+              onChange={(event) => setProfile((current) => ({ ...current, cycleLength: Number(event.target.value) || 28 }))}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
+            />
+          </label>
+
+          <label className="text-sm font-medium text-slate-600">
+            Period duration (days)
+            <input
+              type="number"
+              min={1}
+              max={14}
+              value={profile.periodLength}
+              onChange={(event) => setProfile((current) => ({ ...current, periodLength: Number(event.target.value) || 5 }))}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
+            />
+          </label>
+
+          <label className="text-sm font-medium text-slate-600 md:col-span-2">
+            Time zone
+            <input
+              value={profile.timezone}
+              onChange={(event) => setProfile((current) => ({ ...current, timezone: event.target.value }))}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-violet-300 focus:bg-white"
+            />
+          </label>
+        </div>
+      </section>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fff8fb,_#f8f4ff_38%,_#f5f7ff_100%)] text-slate-800">
       <div className="mx-auto flex max-w-[1600px] gap-6 px-3 py-4 sm:px-4 lg:px-6">
@@ -977,7 +1599,11 @@ export default function Home() {
                       ? Salad
                       : label === 'Insights'
                         ? Activity
-                        : Bell;
+                        : label === 'Health'
+                          ? HeartPulse
+                          : label === 'Profile'
+                            ? Settings
+                            : Bell;
 
               return (
                 <button
@@ -1019,7 +1645,12 @@ export default function Home() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button className="rounded-full border border-slate-200 bg-white p-2.5 text-slate-600 transition hover:bg-slate-50">
+                <button
+                  type="button"
+                  aria-label="Open reminders"
+                  onClick={() => setActiveTab('Reminders')}
+                  className="rounded-full border border-slate-200 bg-white p-2.5 text-slate-600 transition hover:bg-slate-50"
+                >
                   <Bell size={18} />
                 </button>
                 <button
@@ -1056,7 +1687,9 @@ export default function Home() {
           {activeTab === 'Cycle' && renderCycle()}
           {activeTab === 'Nutrition' && renderNutrition()}
           {activeTab === 'Insights' && renderInsights()}
+          {activeTab === 'Health' && renderHealth()}
           {activeTab === 'Reminders' && renderReminders()}
+          {activeTab === 'Profile' && renderProfile()}
         </main>
       </div>
 
@@ -1092,13 +1725,18 @@ export default function Home() {
 
       {profileOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-[30px] border border-white/70 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.16)]">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-dialog-title"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[30px] border border-white/70 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.16)]"
+          >
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-violet-500">Profile</p>
-                <h3 className="mt-1 text-xl font-semibold text-slate-900">Personal details</h3>
+                <h3 id="profile-dialog-title" className="mt-1 text-xl font-semibold text-slate-900">Personal details</h3>
               </div>
-              <button onClick={() => setProfileOpen(false)} className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600">
+              <button type="button" onClick={() => setProfileOpen(false)} className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600">
                 Close
               </button>
             </div>
@@ -1199,5 +1837,6 @@ export default function Home() {
 
 function formatLongDate(value: string) {
   if (!value) return '—';
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
+  const date = toDate(value);
+  return date ? new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(date) : '—';
 }

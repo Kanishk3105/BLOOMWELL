@@ -1,0 +1,110 @@
+- generic [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - main [ref=f4e4]:
+      - generic [ref=f4e5]:
+        - generic [ref=f4e6]:
+          - generic [ref=f4e7]:
+            - paragraph [ref=f4e8]: Welcome
+            - heading "Here’s your health snapshot" [level=2] [ref=f4e9]
+          - generic [ref=f4e10]:
+            - button "Open reminders" [ref=f4e11] [cursor=pointer]
+            - button "U Your profile Update details" [ref=f4e15] [cursor=pointer]:
+              - generic [ref=f4e16]: U
+              - generic [ref=f4e17]:
+                - paragraph [ref=f4e18]: Your profile
+                - paragraph [ref=f4e19]: Update details
+        - generic [ref=f4e20]:
+          - button "Today" [ref=f4e21] [cursor=pointer]
+          - button "Cycle" [ref=f4e22] [cursor=pointer]
+          - button "Nutrition" [ref=f4e23] [cursor=pointer]
+          - button "Insights" [ref=f4e24] [cursor=pointer]
+          - button "Health" [ref=f4e25] [cursor=pointer]
+          - button "Reminders" [ref=f4e26] [cursor=pointer]
+          - button "Profile" [ref=f4e27] [cursor=pointer]
+      - generic [ref=f4e133]:
+        - generic [ref=f4e134]:
+          - generic [ref=f4e136]:
+            - paragraph [ref=f4e137]: Meal log
+            - heading "Add food and nutrients" [level=3] [ref=f4e138]
+          - generic [ref=f4e139]:
+            - generic [ref=f4e140]:
+              - generic [ref=f4e141]:
+                - paragraph [ref=f4e142]: Meal photo helper
+                - heading "Capture image" [level=4] [ref=f4e143]
+              - generic [ref=f4e144] [cursor=pointer]: Upload photo
+            - paragraph [ref=f4e145]: A photo is only saved as a preview here; it is not analyzed. Choose a food below for a generic one-serving estimate, or enter nutrition facts manually.
+            - generic [ref=f4e146]:
+              - generic [ref=f4e147]:
+                - text: Optional generic estimate
+                - combobox "Optional generic estimate" [ref=f4e148]:
+                  - option "Choose a typical meal"
+                  - option "Salad with grains and vegetables" [selected]
+                  - option "Pasta with sauce"
+                  - option "Fruit smoothie"
+                  - option "Eggs with toast"
+                  - option "Chicken with rice"
+                  - option "Fish with vegetables"
+                  - option "Beans or lentils with rice"
+                  - option "Sandwich"
+                  - option "Yogurt with fruit"
+                  - option "Vegetable soup"
+                  - option "Pizza"
+              - button "Use estimate" [ref=f4e149] [cursor=pointer]
+          - generic [ref=f4e150]:
+            - generic [ref=f4e151]:
+              - text: Meal name
+              - textbox "Meal name" [ref=f4e152]
+            - generic [ref=f4e153]:
+              - text: Date
+              - textbox "Date" [ref=f4e154]: 2026-10-18
+            - generic [ref=f4e155]:
+              - text: Calories
+              - spinbutton "Calories" [ref=f4e156]
+            - generic [ref=f4e157]:
+              - text: Protein
+              - spinbutton "Protein" [ref=f4e158]
+            - generic [ref=f4e159]:
+              - text: Carbs
+              - spinbutton "Carbs" [ref=f4e160]
+            - generic [ref=f4e161]:
+              - text: Fat
+              - spinbutton "Fat" [ref=f4e162]
+            - generic [ref=f4e163]:
+              - text: Vitamins / nutrients
+              - textbox "Vitamins / nutrients" [ref=f4e164]
+            - button "Save meal" [disabled] [ref=f4e166] [cursor=pointer]
+        - generic [ref=f4e167]:
+          - generic [ref=f4e168]:
+            - generic [ref=f4e170]:
+              - paragraph [ref=f4e171]: Daily intake
+              - heading "Nutrition summary" [level=3] [ref=f4e172]
+            - generic [ref=f4e173]:
+              - generic [ref=f4e174]:
+                - paragraph [ref=f4e175]: Calories
+                - generic [ref=f4e176]: 0 kcal
+              - generic [ref=f4e177]:
+                - paragraph [ref=f4e178]: Protein
+                - generic [ref=f4e179]: 0 g
+              - generic [ref=f4e180]:
+                - paragraph [ref=f4e181]: Carbs
+                - generic [ref=f4e182]: 0 g
+              - generic [ref=f4e183]:
+                - paragraph [ref=f4e184]: Fat
+                - generic [ref=f4e185]: 0 g
+            - application [ref=f4e189]
+          - generic [ref=f4e193]:
+            - generic [ref=f4e195]:
+              - paragraph [ref=f4e196]: Meals
+              - heading "Recent entries" [level=3] [ref=f4e197]
+            - generic [ref=f4e198]: No meals logged yet. Add your first meal to start tracking patterns.
+    - navigation [ref=f4e103]:
+      - generic [ref=f4e104]:
+        - button "Today" [ref=f4e105] [cursor=pointer]
+        - button "Cycle" [ref=f4e109] [cursor=pointer]
+        - button "Nutrition" [ref=f4e112] [cursor=pointer]
+        - button "Insights" [ref=f4e117] [cursor=pointer]
+        - button "Health" [ref=f4e120] [cursor=pointer]
+        - button "Reminders" [ref=f4e124] [cursor=pointer]
+        - button "Profile" [ref=f4e128] [cursor=pointer]
+  - alert [ref=f4e132]
+  - generic [aria-hidden] [ref=f4e199]: "17"
