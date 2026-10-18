@@ -3,8 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
-import { AuthGate, type AuthenticatedAccount } from '@/app/components/auth-gate';
-import { mergeSavedUserData, savedUserDataSchema, type SavedUserData } from '@/lib/user-data';
+import { loadLocalUserData, saveLocalUserData, LOCAL_USER_DATA_KEY, LEGACY_USER_DATA_KEY } from '@/lib/local-user-data';
 import {
   Area,
   AreaChart,
@@ -106,7 +105,6 @@ type Reminder = {
   enabled: boolean;
 };
 
-const STORAGE_KEY = 'bloomwell-user-data-v1';
 const MAX_MEAL_IMAGE_BYTES = 8 * 1024 * 1024;
 const tabs: Tab[] = ['Today', 'Cycle', 'Nutrition', 'Insights', 'Health', 'Reminders', 'Profile'];
 const cycleRangeOptions = ['15d', '30d', '90d', '1y'];
@@ -370,51 +368,24 @@ const mealPresets: MealPreset[] = [
   },
 ];
 
-function isMealAnalysisResult(value: unknown): value is MealAnalysisResult {
-  if (!value || typeof value !== 'object') return false;
-  const result = value as Record<string, unknown>;
-  return (
-    result.detected === true &&
-    typeof result.mealName === 'string' &&
-    Number.isInteger(result.calories) &&
-    Number.isFinite(result.proteinGrams) &&
-    Number.isFinite(result.carbsGrams) &&
-    Number.isFinite(result.fatGrams) &&
-    Array.isArray(result.potentialNutrients) &&
-    result.potentialNutrients.every((item) => typeof item === 'string') &&
-    ['low', 'medium', 'high'].includes(String(result.confidence)) &&
-    typeof result.assumptions === 'string'
-  );
-}
-
-function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
+function BloomWellDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('Today');
   const [selectedRange, setSelectedRange] = useState<string>('15d');
-  const [todaySaveMessage, setTodaySaveMessage] = useState('');
   const [profile, setProfile] = useState<Profile>(defaultProfile);
   const [cycleEntries, setCycleEntries] = useState<CycleEntry[]>([]);
   const [mealEntries, setMealEntries] = useState<MealEntry[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>(defaultReminders);
-  const [loadedUserId, setLoadedUserId] = useState('');
-  const [userDataLoadError, setUserDataLoadError] = useState<{ userId: string; message: string } | null>(null);
-  const [userDataSyncError, setUserDataSyncError] = useState('');
-  const [userDataSyncState, setUserDataSyncState] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const [userDataSyncConflict, setUserDataSyncConflict] = useState(false);
-  const [legacyDataAvailable, setLegacyDataAvailable] = useState(false);
-  const [legacyImportError, setLegacyImportError] = useState('');
-  const [dataLoadAttempt, setDataLoadAttempt] = useState(0);
+  const [localDataLoaded, setLocalDataLoaded] = useState(false);
+  const [localDataError, setLocalDataError] = useState('');
+  const [localLoadAttempt, setLocalLoadAttempt] = useState(0);
+  const [localDataSaveState, setLocalDataSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [localDataSaveError, setLocalDataSaveError] = useState('');
+  const [todaySaveMessage, setTodaySaveMessage] = useState('');
   const [saveAttempt, setSaveAttempt] = useState(0);
   const saveTodayRequested = useRef(false);
-  const accountRevision = useRef<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mealImagePreview, setMealImagePreview] = useState<string | null>(null);
-  const [mealImageFile, setMealImageFile] = useState<File | null>(null);
-  const [mealPhotoConsent, setMealPhotoConsent] = useState(false);
-  const [geminiAvailable, setGeminiAvailable] = useState<boolean | null>(null);
-  const [geminiStatusError, setGeminiStatusError] = useState('');
-  const [isAnalyzingMeal, setIsAnalyzingMeal] = useState(false);
   const [mealEstimateDetails, setMealEstimateDetails] = useState<MealEstimateDetails | null>(null);
-  const [mealAnalysisMessage, setMealAnalysisMessage] = useState('');
   const [mealPhotoError, setMealPhotoError] = useState('');
   const [selectedMealPreset, setSelectedMealPreset] = useState('');
   const [newCycleEntry, setNewCycleEntry] = useState({
@@ -434,8 +405,6 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
     vitamins: '',
     nutritionSource: 'manual' as NutritionSource,
   });
-  const userDataReady = loadedUserId === account.userId;
-
   useEffect(() => {
     return () => {
       if (mealImagePreview) URL.revokeObjectURL(mealImagePreview);
@@ -444,133 +413,57 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
 
   useEffect(() => {
     let active = true;
-    const checkGeminiStatus = async () => {
+    const timer = window.setTimeout(() => {
       try {
-        const response = await fetch('/api/nutrition/analyze', { cache: 'no-store' });
-        const result: unknown = await response.json();
-        if (!response.ok || !result || typeof result !== 'object' || !('available' in result) || typeof result.available !== 'boolean') {
-          throw new Error('The photo-analysis setup could not be checked.');
-        }
-        if (active) {
-          setGeminiAvailable(result.available);
-          setGeminiStatusError('');
-        }
+        const restored = loadLocalUserData(window.localStorage);
+        if (!active) return;
+        setProfile({ ...defaultProfile, ...restored.profile });
+        setCycleEntries(restored.cycleEntries ?? []);
+        setMealEntries(restored.mealEntries ?? []);
+        setReminders(restored.reminders ?? defaultReminders);
+        setLocalDataLoaded(true);
       } catch (error) {
         if (active) {
-          setGeminiAvailable(false);
-          setGeminiStatusError(error instanceof Error ? error.message : 'The photo-analysis setup could not be checked.');
+          setLocalDataError(
+            error instanceof Error
+              ? `Could not read this device’s BloomWell data: ${error.message}`
+              : 'Could not read this device’s BloomWell data.',
+          );
         }
       }
-    };
-    void checkGeminiStatus();
+    }, 0);
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
-  }, []);
+  }, [localLoadAttempt]);
 
   useEffect(() => {
-    let active = true;
+    if (!localDataLoaded || localDataError) return;
 
-    const loadUserData = async () => {
-      const { data, error } = await account.supabase
-        .from('bloomwell_user_data')
-        .select('data, updated_at')
-        .eq('user_id', account.userId)
-        .maybeSingle();
-      if (error) throw error;
-      accountRevision.current = data?.updated_at ?? null;
-
-      let restored: SavedUserData = {};
-      if (data?.data !== undefined && data.data !== null) {
-        const parsed = savedUserDataSchema.safeParse(data.data);
-        if (!parsed.success) {
-          throw new Error('Your saved BloomWell data has an unsupported format. It was not changed. Contact the app owner for help.');
+    const timer = window.setTimeout(() => {
+      setLocalDataSaveState('saving');
+      setLocalDataSaveError('');
+      try {
+        saveLocalUserData(window.localStorage, { profile, cycleEntries, mealEntries, reminders });
+        setLocalDataSaveState('saved');
+        if (saveTodayRequested.current) {
+          setTodaySaveMessage('Today’s check-in is saved on this device.');
+          saveTodayRequested.current = false;
         }
-        restored = parsed.data;
+      } catch (error) {
+        setLocalDataSaveError(error instanceof Error ? error.message : 'Could not save this device’s data.');
+        setLocalDataSaveState('idle');
+        if (saveTodayRequested.current) {
+          setTodaySaveMessage('This check-in was not saved. Check available device storage and retry.');
+          saveTodayRequested.current = false;
+        }
       }
-
-      if (!active) return;
-      setProfile({ ...defaultProfile, ...restored.profile });
-      setCycleEntries(restored.cycleEntries ?? []);
-      setMealEntries(restored.mealEntries ?? []);
-      setReminders(restored.reminders ?? defaultReminders);
-      setLegacyDataAvailable(Boolean(localStorage.getItem(STORAGE_KEY)));
-      setLoadedUserId(account.userId);
-    };
-
-    void loadUserData().catch((error: unknown) => {
-      if (!active) return;
-      setUserDataLoadError(
-        {
-          userId: account.userId,
-          message: error instanceof Error
-            ? `Could not load your private health data: ${error.message}`
-            : 'Could not load your private health data. Please try again.',
-        },
-      );
-    });
-
+    }, 350);
     return () => {
-      active = false;
+      window.clearTimeout(timer);
     };
-  }, [account.supabase, account.userId, dataLoadAttempt]);
-
-  useEffect(() => {
-    if (!userDataReady) return;
-
-    let cancelled = false;
-    const timeoutId = window.setTimeout(() => {
-      const saveUserData = async () => {
-        setUserDataSyncState('saving');
-        setUserDataSyncError('');
-        setUserDataSyncConflict(false);
-        const { data: savedRevision, error } = await account.supabase.rpc('save_my_bloomwell_data', {
-          p_data: { profile, cycleEntries, mealEntries, reminders },
-          p_expected_updated_at: accountRevision.current,
-        });
-        if (cancelled) return;
-        if (error) {
-          const conflict = error.code === '40001' || error.message.includes('BLOOMWELL_DATA_CONFLICT');
-          setUserDataSyncConflict(conflict);
-          setUserDataSyncError(conflict
-            ? 'These records changed on another device. Your current edits have not been saved. Download a backup before signing out and reloading the latest account data.'
-            : `Could not save your changes: ${error.message}`);
-          setUserDataSyncState('idle');
-          if (saveTodayRequested.current) {
-            setTodaySaveMessage('This check-in was not saved. Review the error above and retry.');
-            saveTodayRequested.current = false;
-          }
-          return;
-        }
-        if (typeof savedRevision !== 'string') {
-          throw new Error('The database did not return a save revision. Your changes could not be confirmed.');
-        }
-        accountRevision.current = savedRevision;
-        setUserDataSyncState('saved');
-        if (saveTodayRequested.current) {
-          setTodaySaveMessage('Today’s check-in is saved to your BloomWell account.');
-          saveTodayRequested.current = false;
-        }
-      };
-
-      void saveUserData().catch((error: unknown) => {
-        if (cancelled) return;
-        setUserDataSyncError(
-          error instanceof Error ? `Could not save your changes: ${error.message}` : 'Could not save your changes. Please try again.',
-        );
-        setUserDataSyncState('idle');
-        if (saveTodayRequested.current) {
-          setTodaySaveMessage('This check-in was not saved. Review the error above and retry.');
-          saveTodayRequested.current = false;
-        }
-      });
-    }, 700);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-  }, [account.supabase, account.userId, profile, cycleEntries, mealEntries, reminders, userDataReady, saveAttempt]);
+  }, [profile, cycleEntries, mealEntries, reminders, localDataLoaded, localDataError, saveAttempt]);
 
   const observedCycleRange = useMemo(() => {
     const data = getObservedCycleData(cycleEntries);
@@ -629,70 +522,9 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
     setProfileOpen(false);
   };
 
-  const importLegacyData = async () => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      setLegacyDataAvailable(false);
-      return;
-    }
-
-    if (!window.confirm('Merge this device’s previous BloomWell records into the signed-in account? Device profile fields will replace matching account fields; cycle and meal logs will merge by ID; matching reminder settings will use this device’s values.')) {
-      return;
-    }
-
-    setLegacyImportError('');
-    try {
-      const parsed = savedUserDataSchema.safeParse(JSON.parse(raw));
-      if (!parsed.success) {
-        throw new Error('The old device data is invalid or incomplete, so it was not uploaded.');
-      }
-
-      const localData = parsed.data;
-      const { data: accountRow, error: loadError } = await account.supabase
-        .from('bloomwell_user_data')
-        .select('data, updated_at')
-        .eq('user_id', account.userId)
-        .maybeSingle();
-      if (loadError) throw loadError;
-
-      let accountData: SavedUserData = {};
-      if (accountRow?.data !== undefined && accountRow.data !== null) {
-        const existingData = savedUserDataSchema.safeParse(accountRow.data);
-        if (!existingData.success) {
-          throw new Error('The account record has an unsupported format. It was not changed.');
-        }
-        accountData = existingData.data;
-      }
-      const restored = mergeSavedUserData(accountData, localData);
-      const { data: savedRevision, error } = await account.supabase.rpc('save_my_bloomwell_data', {
-        p_data: restored,
-        p_expected_updated_at: accountRow?.updated_at ?? null,
-      });
-      if (error) throw error;
-      if (typeof savedRevision !== 'string') {
-        throw new Error('The database did not return a save revision. The old records remain on this device.');
-      }
-
-      accountRevision.current = savedRevision;
-      setProfile({ ...defaultProfile, ...restored.profile });
-      setCycleEntries(restored.cycleEntries ?? []);
-      setMealEntries(restored.mealEntries ?? []);
-      setReminders(restored.reminders ?? defaultReminders);
-      localStorage.removeItem(STORAGE_KEY);
-      setLegacyDataAvailable(false);
-      setUserDataSyncState('saved');
-      setUserDataSyncConflict(false);
-    } catch (error) {
-      setLegacyImportError(
-        error instanceof Error ? `Could not import the old records: ${error.message}` : 'Could not import the old records. They remain on this device.',
-      );
-    }
-  };
-
   const exportUserData = () => {
     const exportData = {
       exportedAt: new Date().toISOString(),
-      accountEmail: account.email,
       profile,
       cycleEntries,
       mealEntries,
@@ -707,32 +539,23 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
     URL.revokeObjectURL(url);
   };
 
-  const signOut = async () => {
-    try {
-      await account.signOut();
-    } catch (error) {
-      setUserDataSyncError(
-        error instanceof Error ? `Could not sign out: ${error.message}` : 'Could not sign out. Please try again.',
-      );
-    }
-  };
-
-  const deleteAccount = async () => {
-    if (!window.confirm('Permanently delete your BloomWell account and all saved BloomWell health records? This cannot be undone.')) {
-      return;
-    }
-    if (window.prompt('Type DELETE to confirm permanent account and health-record deletion.') !== 'DELETE') {
+  const clearLocalData = () => {
+    if (!window.confirm('Permanently clear BloomWell health records saved on this device? This cannot be undone. Export a backup first if you need one.')) {
       return;
     }
 
     try {
-      await account.deleteAccount();
+      window.localStorage.removeItem(LOCAL_USER_DATA_KEY);
+      window.localStorage.removeItem(LEGACY_USER_DATA_KEY);
+      setProfile(defaultProfile);
+      setCycleEntries([]);
+      setMealEntries([]);
+      setReminders(defaultReminders);
+      setLocalDataSaveError('');
+      setLocalDataSaveState('saved');
+      setTodaySaveMessage('Local BloomWell records were cleared from this device.');
     } catch (error) {
-      setUserDataSyncError(
-        error instanceof Error
-          ? `Could not delete the account: ${error.message}. Your data was not confirmed deleted.`
-          : 'Could not delete the account. Your data was not confirmed deleted.',
-      );
+      setLocalDataSaveError(error instanceof Error ? error.message : 'Could not clear local data.');
     }
   };
 
@@ -764,10 +587,7 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
   const handleMealImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    setMealImageFile(null);
-    setMealPhotoConsent(false);
     setMealImagePreview(null);
-    setMealAnalysisMessage('');
     setMealPhotoError('');
     setMealEstimateDetails(null);
     setSelectedMealPreset('');
@@ -804,11 +624,7 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
     }
 
     const objectUrl = URL.createObjectURL(file);
-    setMealImageFile(file);
     setMealImagePreview(objectUrl);
-    setMealAnalysisMessage(
-      'Photo previewed locally. It is sent to Google Gemini only after you consent and choose Analyze.',
-    );
   };
 
   const applyMealPreset = () => {
@@ -826,76 +642,6 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
       nutritionSource: 'generic-estimate',
     }));
     setMealEstimateDetails(null);
-  };
-
-  const analyzeMealPhoto = async () => {
-    if (!mealImageFile || !mealPhotoConsent || geminiAvailable !== true) {
-      setMealPhotoError('Choose a photo and confirm consent before starting analysis.');
-      return;
-    }
-
-    setIsAnalyzingMeal(true);
-    setMealPhotoError('');
-    setMealAnalysisMessage('');
-
-    try {
-      const { data: sessionData, error: sessionError } = await account.supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-      if (!sessionData.session) {
-        throw new Error('Your sign-in has expired. Sign in again before analyzing a photo.');
-      }
-
-      const formData = new FormData();
-      formData.append('image', mealImageFile);
-      const response = await fetch('/api/nutrition/analyze', {
-        method: 'POST',
-        body: formData,
-        headers: { Authorization: `Bearer ${sessionData.session.access_token}` },
-        signal: AbortSignal.timeout(50_000),
-      });
-      const result: unknown = await response.json();
-
-      if (!response.ok) {
-        const errorMessage =
-          result && typeof result === 'object' && 'error' in result && typeof result.error === 'string'
-            ? result.error
-            : 'Google Gemini could not analyze this photo. Please try again.';
-        throw new Error(errorMessage);
-      }
-
-      if (!isMealAnalysisResult(result)) {
-        throw new Error('Google Gemini returned incomplete nutrition data. Please try again.');
-      }
-
-      const analysisDetails = {
-        confidence: result.confidence,
-        assumptions: result.assumptions,
-      };
-      setNewMealEntry((current) => ({
-        ...current,
-        name: result.mealName,
-        calories: result.calories,
-        protein: result.proteinGrams,
-        carbs: result.carbsGrams,
-        fat: result.fatGrams,
-        vitamins: result.potentialNutrients.join(', '),
-        nutritionSource: 'ai-estimate',
-      }));
-      setMealEstimateDetails(analysisDetails);
-      setMealAnalysisMessage(
-        `Gemini estimate ready for ${result.mealName}. Confidence: ${result.confidence}. Review and edit before saving.`,
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error && error.name === 'TimeoutError'
-          ? 'Analysis timed out. Try again with a smaller or clearer photo.'
-          : error instanceof Error
-            ? error.message
-            : 'Analysis failed. Please try again.';
-      setMealPhotoError(message);
-    } finally {
-      setIsAnalyzingMeal(false);
-    }
   };
 
   const updateMealNutrition = (
@@ -942,10 +688,7 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
     });
     setSelectedMealPreset('');
     setMealEstimateDetails(null);
-    setMealAnalysisMessage('');
     setMealImagePreview(null);
-    setMealImageFile(null);
-    setMealPhotoConsent(false);
     setMealPhotoError('');
   };
 
@@ -1294,26 +1037,21 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
               <p className="text-xs uppercase tracking-[0.2em] text-violet-600">Optional meal photo analysis</p>
               <h4 className="mt-1 text-lg font-semibold text-slate-900">Capture image</h4>
             </div>
-            {geminiAvailable ? (
-              <label className="inline-flex cursor-pointer items-center justify-center rounded-full bg-violet-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-violet-500">
-                Upload photo
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  capture="environment"
-                  disabled={isAnalyzingMeal}
-                  className="hidden"
-                  onChange={handleMealImageUpload}
-                />
-              </label>
-            ) : null}
+            <label className="inline-flex cursor-pointer items-center justify-center rounded-full bg-violet-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-violet-500">
+              Preview photo
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                capture="environment"
+                className="hidden"
+                onChange={handleMealImageUpload}
+              />
+            </label>
           </div>
 
-          {geminiAvailable === false ? (
-            <p role={geminiStatusError ? 'alert' : 'status'} className={`mt-3 rounded-2xl px-3 py-2 text-sm leading-6 ${geminiStatusError ? 'bg-rose-50 text-rose-700' : 'bg-white/80 text-slate-700'}`}>
-              {geminiStatusError || 'Photo analysis is not enabled on this app yet. You can still use the generic estimate or enter nutrition details manually.'}
-            </p>
-          ) : null}
+          <p role="status" className="mt-3 rounded-2xl bg-white/80 px-3 py-2 text-sm leading-6 text-slate-700">
+            Photo preview stays on this device. Automatic photo analysis needs a remote service and is unavailable in this local-only app. Use manual entry or a typical-meal estimate instead.
+          </p>
 
           {mealImagePreview ? (
             <div className="mt-3 overflow-hidden rounded-[20px] border border-violet-200 bg-white">
@@ -1328,49 +1066,12 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
             </div>
           ) : null}
 
-          <p className="mt-3 rounded-2xl bg-white/80 px-3 py-2 text-sm leading-6 text-slate-700">
-            {mealAnalysisMessage || (geminiAvailable
-              ? 'Photo analysis is optional. The preview stays in this browser until you consent and choose Analyze; you can also use a generic estimate or enter details manually.'
-              : 'You can add a generic estimate or enter meal details manually.')}
-          </p>
-          {mealPhotoError ? <p role="alert" className="mt-2 text-sm font-medium text-rose-700">{mealPhotoError}</p> : null}
-
-          {geminiAvailable ? <div className="mt-3 flex flex-col gap-3 rounded-2xl bg-white/80 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <label className="flex items-start gap-2 text-sm leading-5 text-slate-700">
-              <input
-                type="checkbox"
-                checked={mealPhotoConsent}
-                disabled={!mealImageFile || isAnalyzingMeal}
-                onChange={(event) => setMealPhotoConsent(event.target.checked)}
-                className="mt-1 accent-violet-600"
-              />
-              <span>
-                I agree to send this photo to Google for analysis. I understand that unpaid Gemini API use may allow Google to use submitted content to improve services and have it reviewed by people. I will not upload sensitive, confidential, or personal information.{' '}
-                <a
-                  href="https://ai.google.dev/gemini-api/terms"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-medium text-violet-700 underline underline-offset-2"
-                >
-                  Read Google&apos;s Gemini API terms
-                </a>
-                .
-              </span>
-            </label>
-            <button
-              type="button"
-              onClick={analyzeMealPhoto}
-              disabled={!mealImageFile || !mealPhotoConsent || isAnalyzingMeal || geminiAvailable !== true}
-              className="shrink-0 rounded-2xl bg-violet-600 px-4 py-3 font-medium text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isAnalyzingMeal ? 'Analyzing…' : 'Analyze with Gemini'}
-            </button>
-          </div> : null}
-          {geminiAvailable ? (
-            <p className="mt-2 text-xs leading-5 text-slate-500">
-              BloomWell does not save the photo. Gemini returns approximate nutrition values; verify the portion and edit the results.
+          {mealImagePreview ? (
+            <p className="mt-3 rounded-2xl bg-white/80 px-3 py-2 text-sm leading-6 text-slate-700">
+              Photo preview is local only and has not been uploaded. Nutrition estimates remain manual or typical-meal estimates.
             </p>
           ) : null}
+          {mealPhotoError ? <p role="alert" className="mt-2 text-sm font-medium text-rose-700">{mealPhotoError}</p> : null}
 
           <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
             <label className="text-sm font-medium text-slate-600">
@@ -1734,13 +1435,13 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
     <div className="space-y-6">
       <section className="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-[0_24px_60px_rgba(118,107,155,0.08)] backdrop-blur-xl">
         <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Account and data</p>
-        <p className="mt-2 text-sm text-slate-600">Signed in as {account.email || 'your BloomWell account'}. Health records are saved to this account.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">Your health records are stored only in this browser or installed app on this device. They do not sync to other devices. Clearing app data or uninstalling BloomWell can permanently remove them.</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <button type="button" onClick={exportUserData} className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-            Download my data
+            Export my data
           </button>
-          <button type="button" onClick={deleteAccount} className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100">
-            Delete account and data
+          <button type="button" onClick={clearLocalData} className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100">
+            Clear data on this device
           </button>
         </div>
       </section>
@@ -1834,27 +1535,21 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
     </div>
   );
 
-  if (!userDataReady) {
-    const loadError = userDataLoadError?.userId === account.userId
-      ? userDataLoadError.message
-      : '';
+  if (!localDataLoaded) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_#fff8fb,_#f8f4ff_38%,_#f5f7ff_100%)] p-5">
         <section className="w-full max-w-xl rounded-[32px] border border-white bg-white/90 p-7 shadow-[0_24px_70px_rgba(118,95,146,0.14)]">
-          {loadError ? (
+          {localDataError ? (
             <>
-              <h1 className="text-xl font-semibold text-slate-900">Could not load your records</h1>
-              <p role="alert" className="mt-3 text-sm leading-6 text-rose-700">{loadError}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">Your records were not replaced with empty data. Check the database migration, account connection, and row-level security, then retry.</p>
-              <button type="button" onClick={() => setDataLoadAttempt((attempt) => attempt + 1)} className="mt-5 rounded-2xl bg-violet-600 px-5 py-3 font-medium text-white">
+              <h1 className="text-xl font-semibold text-slate-900">Could not load this device’s records</h1>
+              <p role="alert" className="mt-3 text-sm leading-6 text-rose-700">{localDataError}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">BloomWell did not replace the saved data. Check device storage availability, then retry.</p>
+              <button type="button" onClick={() => { setLocalDataError(''); setLocalLoadAttempt((attempt) => attempt + 1); }} className="mt-5 rounded-2xl bg-violet-600 px-5 py-3 font-medium text-white">
                 Try again
-              </button>
-              <button type="button" onClick={signOut} className="ml-3 mt-5 rounded-2xl border border-slate-200 px-5 py-3 font-medium text-slate-700">
-                Sign out
               </button>
             </>
           ) : (
-            <p role="status" className="text-sm text-slate-600">Loading your private BloomWell records…</p>
+            <p role="status" className="text-sm text-slate-600">Loading records stored on this device…</p>
           )}
         </section>
       </main>
@@ -1917,7 +1612,7 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
               <span className="text-sm font-semibold">Care note</span>
             </div>
             <p className="text-sm leading-6 text-slate-600">
-              Your records belong to your signed-in account. Sign out when you finish on a shared device.
+              Your records stay on this device. Anyone with access to this device or its unlocked app profile may be able to open them.
             </p>
           </div>
         </aside>
@@ -1970,45 +1665,21 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
               ))}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
-              <span>{account.email || 'Signed in'} · {userDataSyncState === 'saving' ? 'Saving securely…' : userDataSyncState === 'saved' ? 'Saved to your account' : 'Account data ready'}</span>
-              <button type="button" onClick={signOut} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-50">
-                Sign out
-              </button>
+              <span>{localDataSaveState === 'saving' ? 'Saving on this device…' : localDataSaveState === 'saved' ? 'Saved on this device' : 'Device storage ready'}</span>
+              <span>Local only · no account sync</span>
             </div>
           </header>
 
-          {userDataSyncError ? (
+          {localDataSaveError ? (
             <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              <span>{userDataSyncError}</span>
-              {userDataSyncConflict ? (
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={exportUserData} className="rounded-full bg-white px-3 py-1.5 font-medium text-rose-700">
-                    Download backup
-                  </button>
-                  <button type="button" onClick={signOut} className="rounded-full bg-white px-3 py-1.5 font-medium text-rose-700">
-                    Sign out to reload
-                  </button>
-                </div>
-              ) : userDataSyncState !== 'saving' ? (
-                <button type="button" onClick={() => setSaveAttempt((attempt) => attempt + 1)} className="rounded-full bg-white px-3 py-1.5 font-medium text-rose-700">
-                  Retry save
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
-          {legacyDataAvailable ? (
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <div>
-                <p>Previous BloomWell records were found on this device. They have not been uploaded. Import merges logs and uses the device&apos;s values when profile or reminders overlap.</p>
-                {legacyImportError ? <p role="alert" className="mt-1 text-rose-700">{legacyImportError}</p> : null}
-              </div>
-              <button type="button" onClick={() => void importLegacyData()} className="rounded-full bg-white px-3 py-1.5 font-medium text-amber-900">
-                Review and import
+              <span>Could not save your local records: {localDataSaveError}</span>
+              <button type="button" onClick={() => setSaveAttempt((attempt) => attempt + 1)} className="rounded-full bg-white px-3 py-1.5 font-medium text-rose-700">
+                Retry save
               </button>
             </div>
           ) : null}
 
+          {todaySaveMessage ? <p role="status" className="mb-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{todaySaveMessage}</p> : null}
           {activeTab === 'Today' && renderToday()}
           {activeTab === 'Cycle' && renderCycle()}
           {activeTab === 'Nutrition' && renderNutrition()}
@@ -2162,11 +1833,7 @@ function BloomWellDashboard({ account }: { account: AuthenticatedAccount }) {
 }
 
 export default function Home() {
-  return (
-    <AuthGate>
-      {(account) => <BloomWellDashboard key={account.userId} account={account} />}
-    </AuthGate>
-  );
+  return <BloomWellDashboard />;
 }
 
 function formatLongDate(value: string) {

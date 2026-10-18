@@ -109,16 +109,14 @@ describe('BloomWell account data', () => {
     expect(isolationTest).toMatch(/rollback;/i);
   });
 
-  it('keeps Gemini credentials server-only and configures baseline response security headers', async () => {
+  it('keeps local-only exports free of server APIs, secrets, and public auth configuration', async () => {
     const environmentTemplate = await readFile(new URL('../.env.example', import.meta.url), 'utf8');
-    const nutritionRoute = await readFile(new URL('../app/api/nutrition/analyze/route.ts', import.meta.url), 'utf8');
     const nextConfig = await readFile(new URL('../next.config.mjs', import.meta.url), 'utf8');
+    const page = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
 
-    expect(environmentTemplate).toMatch(/^GEMINI_API_KEY=/m);
-    expect(environmentTemplate).not.toMatch(/NEXT_PUBLIC_GEMINI_API_KEY/);
-    expect(nutritionRoute).toMatch(/process\.env\.GEMINI_API_KEY/);
-    expect(nextConfig).toMatch(/X-Content-Type-Options/);
-    expect(nextConfig).toMatch(/X-Frame-Options/);
-    expect(nextConfig).toMatch(/Strict-Transport-Security/);
+    expect(environmentTemplate).not.toMatch(/(?:GEMINI|SUPABASE|SERVICE_ROLE|SECRET|NEXT_PUBLIC_SITE_URL)/i);
+    expect(nextConfig).toMatch(/output:\s*'export'/);
+    expect(page).not.toMatch(/@supabase|\.from\(['"]bloomwell_user_data/);
+    expect(page).not.toMatch(/fetch\(['"]\/api\//);
   });
 });
