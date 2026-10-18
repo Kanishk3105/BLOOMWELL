@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 
@@ -47,25 +48,27 @@ const responseSchema = {
   ],
 };
 
+export async function GET() {
+  return Response.json(
+    { available: Boolean(process.env.GEMINI_API_KEY?.trim()) },
+    { headers: { 'Cache-Control': 'no-store' } },
+  );
+}
+
 function jsonError(message: string, status: number, headers?: HeadersInit) {
   return Response.json({ error: message }, { status, headers });
 }
 
-function getClientKey(request: Request) {
-  const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return request.headers.get('x-real-ip')?.trim() || forwardedFor || 'unknown';
-}
-
-function isRateLimited(clientKey: string) {
+function isRateLimited(userId: string) {
   const now = Date.now();
 
   for (const [key, value] of requestsByClient) {
     if (value.resetAt <= now) requestsByClient.delete(key);
   }
 
-  const current = requestsByClient.get(clientKey);
+  const current = requestsByClient.get(userId);
   if (!current || current.resetAt <= now) {
-    requestsByClient.set(clientKey, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    requestsByClient.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return false;
   }
 
@@ -126,13 +129,38 @@ export async function POST(request: Request) {
     return jsonError('Choose a non-empty image smaller than 8 MB.', 413);
   }
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
+  if (!supabaseUrl || !publishableKey) {
+    return jsonError('Account security is not configured on this server.', 503);
+  }
+
+  const authorization = request.headers.get('authorization');
+  const accessToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!accessToken) {
+    return jsonError('Sign in to analyze a meal photo.', 401);
+  }
+
+  const authClient = createClient(supabaseUrl, publishableKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  let authenticatedUserId = '';
+  try {
+    const { data: authData, error: authError } = await authClient.auth.getUser(accessToken);
+    if (!authError && authData.user) authenticatedUserId = authData.user.id;
+  } catch {
+    return jsonError('Could not verify your sign-in. Please try again.', 503);
+  }
+  if (!authenticatedUserId) {
+    return jsonError('Your sign-in has expired. Sign in again before analyzing a photo.', 401);
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return jsonError('Meal photo analysis is not configured on this server.', 503);
   }
 
-  const clientKey = getClientKey(request);
-  if (isRateLimited(clientKey)) {
+  if (isRateLimited(authenticatedUserId)) {
     return jsonError('Analysis limit reached. Please try again in about an hour.', 429, {
       'Retry-After': String(Math.ceil(RATE_LIMIT_WINDOW_MS / 1000)),
     });

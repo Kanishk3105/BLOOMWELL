@@ -12,4 +12,4 @@ The returned calories, macronutrients, and potential nutrient sources are estima
 
 Keep the key server-side. Do not add a `NEXT_PUBLIC_` prefix or commit `.env.local`. Use a Google Cloud project with active billing if you need the paid-service data terms; this application does not detect whether billing is enabled.
 
-The route accepts JPEG, PNG, and WebP images up to 8 MB and currently uses `gemini-3.8-flash`. It applies an in-memory limit of eight requests per client IP per hour as a basic safeguard. That limit is per server process and is not a substitute for durable rate limiting or authentication; configure those before exposing a paid Gemini-backed endpoint to the public.
+The route accepts JPEG, PNG, and WebP images up to 8 MB, verifies the signed-in Supabase account before calling Gemini, and currently uses `gemini-3.8-flash`. It applies an in-memory limit of eight requests per account per hour as a basic safeguard. That limit is per server process and is not a substitute for durable, shared rate limiting and abuse monitoring before exposing a paid Gemini-backed endpoint to the public.
