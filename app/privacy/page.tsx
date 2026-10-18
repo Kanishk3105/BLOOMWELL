@@ -25,17 +25,15 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold text-slate-900">Account and health records</h2>
             <p>
-              Account sign-in is provided by Supabase Auth. After the account database migration is installed and the owner configures a Supabase project, profile, cycle, meal, and reminder records are stored in that project in a user-owned row protected by row-level security. The app reads records using the signed-in user&apos;s row and routes writes through a user-scoped, revision-checked database function. It does not use an administrative service-role key in the browser.
+              This temporary no-login version stores profile, cycle, meal, and reminder records only in the browser or installed app&apos;s local storage on this device. The application does not send these health records to Supabase, and they do not synchronize between devices.
             </p>
             <p className="mt-2">
-              The app owner controls the Supabase project, database region, backups, retention, and access. Confirm those settings and the provider&apos;s current terms before entering health information. A shared or untrusted device may retain your sign-in session; sign out when finished.
+              Anyone who can use this device or its unlocked app profile may be able to view the local records. Clearing browser/site data or uninstalling the app can permanently erase them. Export a backup if you need to keep a copy. The app owner cannot restore device-local records.
             </p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-slate-900">Meal photos</h2>
-            <p>
-              Meal-photo analysis is optional. If enabled, the photo is sent through BloomWell&apos;s server to Google Gemini only after the user gives explicit consent and starts analysis. Google&apos;s handling depends on the API service and billing terms; unpaid usage may allow submitted content to be used to improve services and reviewed by people. Do not send sensitive, confidential, or personal information in meal photos. BloomWell does not save the photo in the health-record row.
-            </p>
+            <p>Photo preview is local to the device. Automatic photo analysis is unavailable in this local-only build. Manual food logging and typical-meal estimates remain available.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-slate-900">Your choices and limitations</h2>
@@ -46,7 +44,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold text-slate-900">India and launch readiness</h2>
             <p>
-              Before public release in India or elsewhere, the app owner must review applicable privacy and consumer-protection requirements, choose and disclose data regions, confirm age eligibility and consent flows, prepare a grievance/contact channel and incident response, and obtain qualified legal and security review. This prototype is not certified as compliant with India&apos;s DPDP Act or any health-data regulation.
+              Before public release in India or elsewhere, the app owner must review applicable privacy and consumer-protection requirements, confirm age eligibility and consent flows, prepare a grievance/contact channel and incident response, and obtain qualified legal and security review. This prototype is not certified as compliant with India&apos;s DPDP Act or any health-data regulation.
             </p>
           </section>
         </div>

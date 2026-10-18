@@ -3,6 +3,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
+import { Capacitor } from '@capacitor/core';
+import { Keyboard, KeyboardResize } from '@capacitor/keyboard';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { loadLocalUserData, saveLocalUserData, LOCAL_USER_DATA_KEY, LEGACY_USER_DATA_KEY } from '@/lib/local-user-data';
 import {
   Area,
@@ -410,6 +413,19 @@ function BloomWellDashboard() {
       if (mealImagePreview) URL.revokeObjectURL(mealImagePreview);
     };
   }, [mealImagePreview]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    void Promise.all([
+      StatusBar.setOverlaysWebView({ overlay: false }),
+      StatusBar.setBackgroundColor({ color: '#f7f4fb' }),
+      StatusBar.setStyle({ style: Style.Dark }),
+      Keyboard.setResizeMode({ mode: KeyboardResize.Native }),
+    ]).catch((error: unknown) => {
+      console.error('Could not configure BloomWell Android system bars or keyboard.', error);
+    });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -1690,7 +1706,7 @@ function BloomWellDashboard() {
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/70 bg-white/80 p-3 backdrop-blur-2xl lg:hidden">
+      <nav className="safe-bottom-nav fixed inset-x-0 bottom-0 z-50 border-t border-white/70 bg-white/80 p-3 backdrop-blur-2xl lg:hidden">
         <div className="mx-auto flex max-w-md items-center justify-around gap-2">
           {tabs.map((tab) => {
             const Icon =

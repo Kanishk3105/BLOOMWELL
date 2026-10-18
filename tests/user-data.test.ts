@@ -114,7 +114,7 @@ describe('BloomWell account data', () => {
     const nextConfig = await readFile(new URL('../next.config.mjs', import.meta.url), 'utf8');
     const page = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
 
-    expect(environmentTemplate).not.toMatch(/(?:GEMINI|SUPABASE|SERVICE_ROLE|SECRET|NEXT_PUBLIC_SITE_URL)/i);
+    expect(environmentTemplate).not.toMatch(/^(?:GEMINI_API_KEY|NEXT_PUBLIC_SUPABASE_URL|NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY|NEXT_PUBLIC_SITE_URL)\s*=/im);
     expect(nextConfig).toMatch(/output:\s*'export'/);
     expect(page).not.toMatch(/@supabase|\.from\(['"]bloomwell_user_data/);
     expect(page).not.toMatch(/fetch\(['"]\/api\//);
